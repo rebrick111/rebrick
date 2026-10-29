@@ -443,8 +443,8 @@ function railStep(rail, dir) {
   const atStart = rail.scrollLeft <= 4;
   rail.scrollTo({ left: dir > 0 ? (atEnd ? 0 : rail.scrollLeft + step) : (atStart ? rail.scrollWidth : rail.scrollLeft - step), behavior: calm() ? 'auto' : 'smooth' });
 }
+// 자동 넘김은 '동작 줄이기' 설정이어도 계속함 (사용자 요청 2026-10-29) — 대신 그때는 미끄러지는 효과 없이 바로 넘김
 function autoSlide(rail, ms = 3500) {
-  if (calm()) return;
   const s = hoverPause(rail);
   const t = setInterval(() => {
     if (!rail.isConnected) return clearInterval(t);
@@ -472,7 +472,7 @@ function newsTicker(items, show = 4, ms = 3500) {
     list.style.transform = `translateY(-${rows[i].offsetTop}px)`;
   };
   requestAnimationFrame(fit);
-  if (calm() || items.length <= show) return box;
+  if (items.length <= show) return box;
   const s = hoverPause(box);
   const t = setInterval(() => {
     if (!box.isConnected) return clearInterval(t);
@@ -512,6 +512,53 @@ const BANNER_ART = `<svg class="art" viewBox="0 0 440 300" aria-hidden="true">
       <g fill="#18237a"><path d="M107 69 L114 50 L94 55 Z"/><path d="M47 66 L40 85 L60 80 Z"/></g></g>
   </g></svg>`;
 // part = 'banner' (얇은 배너, 매물 위) / 'extras' (바로가기·안내 띠, 매물 아래)
+// 맨 위 배너 여러 장: 리브릭 → 코믹콘 D-day → 곧 단종 세트 → 공식몰 프로모션, 5초마다 넘김 (점·화살표로도 넘김)
+function heroCarousel(first) {
+  const slides = [first];
+  if (SDCC) slides.push(el('a', { class: 'banner slim dark', href: '#/limited' },
+    el('span', { class: 'eyebrow' }, '한정판의 성지, 코믹콘'),
+    el('h2', {}, `${SDCC.name}까지 `, el('em', {}, `D-${daysUntil(SDCC.from)}`)),
+    el('p', {}, `역대 코믹콘 한정판 ${LIMITED.length}개의 지금 시세를 확인해 보세요.`),
+    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '한정판 시세 보기'))));
+  const retire = Object.entries(CATALOG).filter(([, c]) => c.store?.flags.includes('retiringSoon')).sort((a, b) => b[1].msrp - a[1].msrp)[0];
+  if (retire) {
+    const [no, c] = retire;
+    const s = el('a', { class: 'banner slim warm', href: `#/set/${no}` },
+      el('span', { class: 'eyebrow' }, '⏳ 곧 단종'),
+      el('h2', {}, c.name),
+      el('p', {}, `#${no} · 공식몰 ${won(c.msrp)} · 단종되면 중고 가격이 오르는 경우가 많아요.`),
+      el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '시세 보기')));
+    const src = imgOf(no);
+    if (src) { const im = el('img', { class: 'art photo', src, alt: '', referrerpolicy: 'no-referrer' }); im.onerror = () => im.remove(); s.append(im); }
+    slides.push(s);
+  }
+  const p = PROMOS.find(x => promoState(x) === 'now' && x.gift) || PROMOS.find(x => promoState(x) === 'soon');
+  if (p) slides.push(el('a', { class: 'banner slim green', href: '#/promos' },
+    el('span', { class: 'eyebrow' }, '🎁 공식몰 프로모션 ' + (promoState(p) === 'now' ? '진행 중' : '예정')),
+    el('h2', {}, p.name),
+    el('p', {}, p.note || '레고 공식몰 사은품·할인 소식이에요.'),
+    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '프로모션 보기'))));
+  const track = el('div', { class: 'hc-track' }, slides.map(s => el('div', { class: 'hc-slide' }, s)));
+  let i = 0;
+  const dots = el('div', { class: 'hc-dots', role: 'tablist', 'aria-label': '배너' });
+  const go = n => {
+    i = (n + slides.length) % slides.length;
+    track.style.transform = `translateX(-${i * 100}%)`;
+    dots.querySelectorAll('button').forEach((d, k) => d.setAttribute('aria-selected', String(k === i)));
+  };
+  slides.forEach((_, k) => dots.append(el('button', { type: 'button', 'aria-label': `${k + 1}번째 배너`, 'aria-selected': String(k === 0), onclick: () => go(k) })));
+  const box = el('section', { class: 'hc', 'aria-roledescription': '배너' }, track, dots,
+    el('button', { type: 'button', class: 'hc-arrow prev', 'aria-label': '이전 배너', onclick: () => go(i - 1) }, '‹'),
+    el('button', { type: 'button', class: 'hc-arrow next', 'aria-label': '다음 배너', onclick: () => go(i + 1) }, '›'));
+  if (calm()) box.classList.add('calm');
+  const st = hoverPause(box);
+  const t = setInterval(() => { if (!box.isConnected) return clearInterval(t); if (!st.paused && !document.hidden) go(i + 1); }, 5000);
+  // 휴대폰: 손가락으로 밀어서 넘기기
+  let x0 = null;
+  box.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  box.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1)); x0 = null; }, { passive: true });
+  return box;
+}
 function renderHero(part) {
   const banner = el('section', { class: 'banner slim' },
     el('span', { class: 'eyebrow' }, '레고 중고거래, 이제 시세 보고 하세요'),
@@ -519,7 +566,7 @@ function renderHero(part) {
     el('p', {}, '세트번호 하나로 정가·중고 시세·브릭링크 가격까지. 비싸게 사지도, 싸게 팔지도 마세요.'),
     el('div', { class: 'bar' }, el('a', { class: 'btn primary', href: '#/sell' }, '내 세트 팔기'), el('a', { class: 'btn glass', href: '#/prices' }, '시세 찾아보기')));
   banner.insertAdjacentHTML('beforeend', BANNER_ART);
-  if (part === 'banner') return banner;
+  if (part === 'banner') return heroCarousel(banner);
   const sc = (href, ic, label, color) => el('a', { class: 'shortcut', href },
     el('span', { class: 'tile', style: `--t:color-mix(in srgb, ${color} 13%, var(--surface));color:${color}` }, icon(ic)), label);
   const p = PROMOS.find(x => promoState(x) === 'now' && x.gift) || PROMOS.find(x => promoState(x) === 'soon');
