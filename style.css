@@ -337,7 +337,26 @@ main .inner { display: grid; gap: 28px; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb .flag { position: absolute; left: 10px; top: 10px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 8px; background: rgba(17, 24, 39, .78); color: #fff; }
 /* 사진 위 딱지는 화면 모드와 상관없이 항상 흰 바탕 + 진한 글자 (다크 모드에서 흰 글자가 되던 문제) */
-.thumb .flag.store { background: #fff; color: #111827; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); font-weight: 800; }
+.thumb .flag.store { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 99px;
+  background: rgba(17, 24, 39, .82); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .03em;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+.thumb .flag.store::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dot, #9ca3af); box-shadow: 0 0 0 2px color-mix(in srgb, var(--dot, #9ca3af) 35%, transparent); }
+/* 목록 안 작은 딱지도 같은 말 + 색 점 */
+.sbadge[class*="tone-"] { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 99px; font-size: 11px; font-weight: 800;
+  letter-spacing: .03em; background: color-mix(in srgb, var(--dot) 14%, var(--surface)); color: var(--fg); border: 0; }
+.sbadge[class*="tone-"]::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); }
+.sbadge.tone-blue, .flag.tone-blue { --dot: #4f6bff; }
+.sbadge.tone-orange, .flag.tone-orange { --dot: #f08a24; }
+.sbadge.tone-purple, .flag.tone-purple { --dot: #9b6bff; }
+.sbadge.tone-red, .flag.tone-red { --dot: #e5383b; }
+.sbadge.tone-gold, .flag.tone-gold { --dot: #e0a800; }
+.sbadge.tone-gray, .flag.tone-gray { --dot: #9ca3af; }
+.flag.tone-blue { --dot: #6b8cff; }
+.flag.tone-orange { --dot: #ff9f43; }
+.flag.tone-purple { --dot: #b48cff; }
+.flag.tone-red { --dot: #ff5b5e; }
+.flag.tone-gold { --dot: #ffc83d; }
+.flag.tone-gray { --dot: #9ca3af; }
 /* 사진 없을 때: 테마색 그라데이션 + 큰 세트번호 + 브릭 실루엣 */
 .ph { width: 100%; height: 100%; display: grid; align-content: end; padding: 14px; color: #fff; position: relative; overflow: hidden;
       background: linear-gradient(150deg, color-mix(in srgb, var(--c, #6c6f7a) 70%, #fff) 0%, var(--c, #6c6f7a) 55%, color-mix(in srgb, var(--c, #6c6f7a) 70%, #000) 100%); }

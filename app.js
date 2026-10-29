@@ -56,7 +56,7 @@ function storeBadge(no) {
   if (s.flags.includes('new')) return { cls: 'new', text: '✨ 신제품' };
   return null;
 }
-const badgeEl = no => { const b = storeBadge(no); return b ? el('span', { class: 'sbadge ' + b.cls }, b.text) : ''; };
+const badgeEl = no => { const b = storeBadge(no); if (!b) return ''; const [label, tone] = fancyLabel(b.text); return el('span', { class: `sbadge tone-${tone}` }, label); };
 const ymdNow = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const promoState = p => { const t = ymdNow(); return p.to && p.to < t ? 'past' : p.from && p.from > t ? 'soon' : p.from || p.to ? 'now' : 'soon'; };
 const promosFor = no => PROMOS.filter(p => promoState(p) !== 'past' && p.need?.includes(no));
@@ -432,7 +432,7 @@ function listingCard(it) {
 // 공식몰 세트 카드 (상품이 아직 없을 때도 첫 화면이 비어 보이지 않게)
 function setCard([no, c], flagText) {
   return el('a', { class: 'card', href: `#/set/${no}` },
-    el('div', { class: 'thumb' }, thumb({ set_no: no, theme: c.theme, name: c.name }), flagText ? el('span', { class: 'flag store' }, flagText) : ''),
+    el('div', { class: 'thumb' }, thumb({ set_no: no, theme: c.theme, name: c.name }), flagText ? fancyFlag(flagText) : ''),
     el('div', { class: 'body' },
       el('div', { class: 'name' }, c.name),
       el('div', { class: 'price' }, c.msrp ? won(c.store?.price || c.msrp) : '-'),
@@ -706,7 +706,7 @@ const LIM_KIND = { fig: '미니피규어', set: '세트', head: '브릭헤즈' }
 const multText = (v, r) => r && v ? `당시 ${won(r)} → ${(v / r).toFixed(1)}배` : '';
 function limCard(x) {
   return el('a', { class: 'card', href: `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${encodeURIComponent(x.id)}#T=P`, target: '_blank', rel: 'noopener' },
-    el('div', { class: 'thumb' }, thumb({ set_no: x.no, theme: x.theme === 'DC' ? 'DC' : x.theme, name: x.name }), el('span', { class: 'flag store' }, `${x.event} ${x.year}`)),
+    el('div', { class: 'thumb' }, thumb({ set_no: x.no, theme: x.theme === 'DC' ? 'DC' : x.theme, name: x.name }), fancyFlag(`${x.event} ${x.year}`)),
     el('div', { class: 'body' },
       el('div', { class: 'name' }, x.name),
       el('div', { class: 'price' }, x.value ? won(x.value) : '시세 정보 없음'),
@@ -793,14 +793,32 @@ function iconCard(x) {
   const c = CATALOG[x.no] || {};
   const v = x.value || BL[x.no]?.new?.[1] || 0;
   return el('a', { class: 'card', href: `#/set/${x.no}` },
-    el('div', { class: 'thumb' }, thumb({ set_no: x.no, theme: c.theme, name: c.name }), v && x.retail ? el('span', { class: 'flag store' }, `${(v / x.retail).toFixed(1)}배`) : badgeFlag(x.no)),
+    el('div', { class: 'thumb' }, thumb({ set_no: x.no, theme: c.theme, name: c.name }), v && x.retail ? fancyFlag(`${(v / x.retail).toFixed(1)}배`) : badgeFlag(x.no)),
     el('div', { class: 'body' },
       el('div', { class: 'name' }, (c.store ? c.name : (window.BRICK_ICONIC_NAMES || {})[x.no]) || c.name || `세트 ${x.no}`),
       el('div', { class: 'price' }, v ? won(v) : c.msrp ? won(c.msrp) : '-'),
       el('div', { class: 'meta' }, v ? multText(v, x.retail) || '새것 시세' : c.msrp ? '공식몰 정가' : ''),
       el('div', { class: 'small' }, x.note)));
 }
-const badgeFlag = no => { const b = storeBadge(no); return b ? el('span', { class: 'flag store' }, b.text) : ''; };
+const badgeFlag = no => { const b = storeBadge(no); return b ? fancyFlag(b.text) : ''; };
+// 사진 위 딱지: 짧은 말 + 색 점 (어두운 반투명 알약). 공식몰 표시·행사·×배 문구를 세련된 짧은 말로 바꿈
+function fancyFlag(text) {
+  const [label, tone] = fancyLabel(text);
+  return el('span', { class: `flag store tone-${tone}` }, label);
+}
+function fancyLabel(text) {
+  const t = String(text || '').replace(/^[^\w가-힣']+\s*/, '');   // 앞 이모지 떼기
+  let m, label = t, tone = 'gray';
+  if (/곧 단종/.test(t)) [label, tone] = ['단종 임박', 'orange'];
+  else if (/신제품/.test(t)) [label, tone] = ['NEW', 'blue'];
+  else if ((m = t.match(/(\d+)월 (\d+)일.*(출시|출고)/))) [label, tone] = [`${m[1]}.${m[2]} ${m[3]}`, 'purple'];
+  else if (/선주문|출고 예정|출시 예정/.test(t)) [label, tone] = ['예약 판매', 'purple'];
+  else if ((m = t.match(/(\d+)% 할인/))) [label, tone] = [`SALE ${m[1]}%`, 'red'];
+  else if (/품절/.test(t)) [label, tone] = ['SOLD OUT', 'gray'];
+  else if ((m = t.match(/^(SDCC|NYCC) (\d{4})/))) [label, tone] = [`${m[1]} '${m[2].slice(2)}`, 'gold'];
+  else if ((m = t.match(/^([\d.]+)배$/))) [label, tone] = [`×${m[1]}`, 'gold'];
+  return [label, tone];
+}
 async function renderTheme(t) {
   if (!THEMES[t]) { location.hash = '#/themes'; return; }
   const { n, s, r } = themeCounts();
@@ -821,7 +839,7 @@ async function renderTheme(t) {
     rail('명작 세트 시세', '단종된 명작이 지금 얼마인지, 정가보다 몇 배 올랐는지', (ICONIC[t] || []).map(iconCard)),
     rail('코믹콘 한정판', '행사장에서만 나온 한정판', lim.map(limCard), null, '#/limited'),
     rail('곧 단종', '단종 전에 공식몰 정가로 살 마지막 기회', store.filter(([, c]) => c.store.flags.includes('retiringSoon')).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, 12).map(x => setCard(x, '곧 단종')), null, '#/new/retire'),
-    rail('신제품·예약', '', store.filter(([, c]) => c.store.flags.includes('new') || /출시 예정|선주문/.test(c.store.avail)).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, 12).map(x => setCard(x, storeBadge(x[0])?.text.replace(/^\S+ /, '') || '신제품')), null, '#/new/soon'),
+    rail('신제품·예약', '', store.filter(([, c]) => c.store.flags.includes('new') || /출시 예정|선주문/.test(c.store.avail)).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, 12).map(x => setCard(x, storeBadge(x[0])?.text || '신제품')), null, '#/new/soon'),
     el('section', { class: 'section' }, el('div', { class: 'sec-head' }, el('h2', {}, `리브릭에 올라온 ${t}`), el('a', { class: 'more', href: `#/prices/${encodeURIComponent(t)}` }, '정가·시세표 →')), grid));
   const { data } = await sb.from('listings').select('*').eq('theme', t).neq('status', 'sold').order('created_at', { ascending: false }).limit(20);
   grid.replaceChildren(...(data?.length ? data.map(listingCard) : [el('div', { class: 'empty', style: 'grid-column:1/-1' }, el('b', {}, `아직 올라온 ${t} 매물이 없어요`), el('a', { class: 'btn primary', href: '#/sell' }, '첫 매물 올리기'))]));
