@@ -531,11 +531,11 @@ const BANNER_ART = `<svg class="art" viewBox="0 0 440 300" aria-hidden="true">
 // 맨 위 배너 여러 장: 리브릭 → 코믹콘 D-day → 곧 단종 세트 → 공식몰 프로모션, 5초마다 넘김 (점·화살표로도 넘김)
 function heroCarousel(first) {
   const slides = [first];
-  if (SDCC) slides.push(el('a', { class: 'banner slim dark', href: '#/limited' },
+  if (SDCC) slides.push(sdccFigs(el('a', { class: 'banner slim dark', href: '#/limited' },
     el('span', { class: 'eyebrow' }, '한정판의 성지, 코믹콘'),
     el('h2', {}, `${SDCC.name}까지 `, el('em', {}, `D-${daysUntil(SDCC.from)}`)),
     el('p', {}, `역대 코믹콘 한정판 ${LIMITED.length}개의 지금 시세를 확인해 보세요.`),
-    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '한정판 시세 보기'))));
+    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '한정판 시세 보기')))));
   const retire = Object.entries(CATALOG).filter(([, c]) => c.store?.flags.includes('retiringSoon')).sort((a, b) => b[1].msrp - a[1].msrp)[0];
   if (retire) {
     const [no, c] = retire;
@@ -713,15 +713,27 @@ function limCard(x) {
       el('div', { class: 'tags' }, el('span', { class: 'cond complete' }, LIM_KIND[x.kind]), x.qty ? el('span', { class: 'cond missing' }, `${x.qty.toLocaleString('ko-KR')}개 한정`) : ''),
       el('div', { class: 'meta' }, multText(x.value, x.retail) || '행사장 배포·추첨')));
 }
+// 코믹콘 배너 오른쪽에 한정판 미니피규어 사진 카드 2장 (로고는 상표라 안 씀) — 블랙 슈트 슈퍼맨(SDCC '13), 배트맨(SDCC '11)
+function sdccFigs(banner) {
+  const cards = el('div', { class: 'sdcc-figs', 'aria-hidden': 'true' }, ['comcon029', 'comcon014'].map((no, i) => {
+    const src = imgOf(no);
+    if (!src) return '';
+    const im = el('img', { src, alt: '', referrerpolicy: 'no-referrer' });
+    im.onerror = () => im.parentNode?.remove();
+    return el('span', { class: 'sdcc-fig' }, im, el('small', {}, i ? "SDCC '11" : "SDCC '13"));
+  }));
+  banner.append(cards);
+  return banner;
+}
 function sdccHero() {
   const d = daysUntil(SDCC.from), nextReg = SDCC.reg.find(([dt]) => daysUntil(dt) >= 0);
-  return el('section', { class: 'banner dark' },
+  return sdccFigs(el('section', { class: 'banner dark' },
     el('span', { class: 'eyebrow' }, '한정판의 성지, 코믹콘'),
     el('h2', {}, d > 0 ? el('span', {}, `${SDCC.name}까지 `, el('em', {}, `D-${d}`)) : `${SDCC.name} 진행 중`),
     el('p', {}, `${SDCC.from.replace(/-/g, '.')} ~ ${SDCC.to.slice(5).replace('-', '.')} (프리뷰 나이트 ${SDCC.preview.slice(5).replace('-', '.')}) · 미국 샌디에이고` +
       (nextReg ? ` · ${nextReg[0].slice(5).replace('-', '/')} ${nextReg[1]}` : '')),
     el('div', { class: 'bar' }, el('a', { class: 'btn primary', href: '#/limited' }, '역대 한정판 시세 보기'),
-      el('a', { class: 'btn glass', href: 'https://www.comic-con.org/', target: '_blank', rel: 'noopener' }, '코믹콘 공식 사이트 ↗')));
+      el('a', { class: 'btn glass', href: 'https://www.comic-con.org/', target: '_blank', rel: 'noopener' }, '코믹콘 공식 사이트 ↗'))));
 }
 function renderLimited() {
   let kind = '', theme = '', sort = 'value';
