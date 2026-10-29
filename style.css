@@ -231,6 +231,10 @@ main .inner { display: grid; gap: 28px; }
 .ttile.pic::before { display: none; }
 .ttile.pic::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--c); }
 .ttile.pic img { position: absolute; left: 50%; top: 10px; width: 74%; height: 54%; transform: translateX(-50%); object-fit: contain; mix-blend-mode: multiply; }
+.ttile.pic .trio { position: absolute; left: 4%; right: 4%; top: 10px; height: 56%; display: flex; justify-content: center; align-items: flex-end; }
+.ttile.pic .trio img { position: static; transform: none; width: 34%; height: 100%; margin: 0 -3%; }
+.ttile.pic .trio img:nth-child(2) { height: 108%; z-index: 1; }
+.ttile.pic:hover .trio img { transform: none; }
 .ttile.pic b { position: relative; font-size: 16px; }
 .ttile.pic span { position: relative; color: #4b5563; opacity: 1; font-weight: 600; }
 @media (prefers-reduced-motion: no-preference) { .ttile.pic img { transition: transform .25s ease; } .ttile.pic:hover img { transform: translateX(-50%) scale(1.06); } }
