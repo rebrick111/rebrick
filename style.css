@@ -100,7 +100,7 @@ header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb
 .drawer-foot { border-top: 1px solid var(--line); padding-top: 14px; }
 
 /* 코믹콘 배너: 한정판 미니피규어 사진 카드 2장 (살짝 기울여 겹침) */
-.sdcc-figs { position: absolute; right: 5%; top: 50%; transform: translateY(-50%); display: flex; z-index: 0; pointer-events: none; }
+.banner > .sdcc-figs { position: absolute; right: 5%; top: 50%; transform: translateY(-50%); display: flex; z-index: 0; pointer-events: none; }
 .sdcc-fig { display: grid; justify-items: center; gap: 2px; width: 118px; padding: 10px 8px 6px; background: #fff; border-radius: 16px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, .35); transform: rotate(-6deg); }
 .sdcc-fig + .sdcc-fig { margin-left: -22px; transform: rotate(7deg) translateY(10px); }
@@ -109,9 +109,13 @@ header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb
 .banner.slim .sdcc-fig { width: 92px; }
 .banner.slim .sdcc-fig img { height: 82px; }
 @media (max-width: 720px) {
-  .sdcc-figs { right: 3%; }
-  .sdcc-fig, .banner.slim .sdcc-fig { width: 70px; padding: 6px 5px 4px; border-radius: 12px; }
-  .sdcc-fig img, .banner.slim .sdcc-fig img { height: 60px; }
+  /* 휴대폰: 글자를 가리지 않게 큰 배너는 오른쪽 위, 얇은 슬라이드는 오른쪽 아래에 한 장만 */
+  .banner > .sdcc-figs { right: 14px; top: 18px; transform: none; }
+  .banner.slim > .sdcc-figs { top: auto; bottom: 14px; }
+  .banner.slim .sdcc-fig + .sdcc-fig { display: none; }
+  .sdcc-fig, .banner.slim .sdcc-fig { width: 58px; padding: 5px 4px 3px; border-radius: 10px; }
+  .sdcc-fig + .sdcc-fig { margin-left: -16px; }
+  .sdcc-fig img, .banner.slim .sdcc-fig img { height: 50px; }
   .sdcc-fig small { font-size: 9px; }
   .banner.dark h2 { max-width: 62%; }
 }
