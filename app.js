@@ -244,6 +244,21 @@ function renderNav() {
     : [el('a', { class: 'btn ghost', href: '#/login' }, '로그인')]),
     el('a', { class: 'btn primary', href: '#/sell' }, icon('plus'), el('span', { class: 'label' }, '판매하기')));
 }
+// 화이트 / 다크 모드: 기본 화이트, 고른 것은 이 브라우저에 기억
+function setTheme(dark, save = true) {
+  if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;
+  document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', dark ? 'dark' : 'only light');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0e1116' : '#ffffff');
+  const b = document.getElementById('themeBtn'), d = document.getElementById('drawerTheme');
+  b.textContent = dark ? '☀️' : '🌙';
+  b.setAttribute('aria-label', dark ? '화이트 모드로 바꾸기' : '다크 모드로 바꾸기');
+  d.textContent = dark ? '☀️ 화이트 모드' : '🌙 다크 모드';
+  if (save) try { dark ? localStorage.setItem('theme', 'dark') : localStorage.removeItem('theme'); } catch (e) {}
+}
+const isDark = () => document.documentElement.dataset.theme === 'dark';
+setTheme(isDark(), false);
+document.getElementById('themeBtn').onclick = () => setTheme(!isDark());
+document.getElementById('drawerTheme').onclick = e => { e.stopPropagation(); setTheme(!isDark()); };
 // ☰ 전체 메뉴 서랍: 버튼·바깥·✕·Esc·메뉴 고르면 닫힘
 const drawer = document.getElementById('drawer'), menuBtn = document.getElementById('menuBtn');
 function setDrawer(open) {

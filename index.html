@@ -6,6 +6,9 @@
   <title>리브릭</title>
   <meta name="description" content="레고만큼은 리브릭 — 세트번호로 찾고, 정가·시세와 비교해서 사고팔아요.">
   <meta name="theme-color" content="#ffffff">
+  <!-- 기본은 화이트 모드 (휴대폰이 다크 설정이어도 브라우저가 자동으로 어둡게 바꾸지 않게). 다크는 🌙 버튼으로 -->
+  <meta name="color-scheme" content="only light">
+  <script>try { if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
   <!-- 카톡·SNS 공유 미리보기 -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="리브릭">
@@ -21,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261029c">
+  <link rel="stylesheet" href="style.css?v=20261029d">
 </head>
 <body>
   <!-- 로고: 파란 브릭 + 노란 스터드 하나 + 다시(re) 도는 화살표 = "다시 쓰는 브릭" -->
@@ -44,6 +47,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="q" type="search" placeholder="세트번호나 이름으로 찾기 (예: 10294, 타이타닉)" aria-label="상품 찾기">
       </label>
+      <button type="button" class="theme-btn" id="themeBtn" aria-label="다크 모드로 바꾸기" title="화면 밝기 바꾸기">🌙</button>
       <nav class="nav" id="nav" aria-label="내 메뉴"></nav>
     </div>
     <div class="inner gutter">
@@ -69,6 +73,7 @@
         <a href="#/news">레고 소식</a><a href="#/youtube">레고 유튜버</a><a href="#/stores">전국 레고스토어</a><a href="#/promos">공식몰 프로모션</a></div>
       <div class="dgroup"><b>💡 도움말</b>
         <a href="#/sellguide">판매 꿀팁</a><a href="#/safety">안전거래·사기 예방</a><a href="#/guide/direct">직거래 가이드</a><a href="#/guide/delivery">택배거래 가이드</a></div>
+      <button type="button" class="btn drawer-theme" id="drawerTheme">🌙 다크 모드</button>
       <div class="drawer-foot" id="drawerFoot"></div>
     </nav>
   </div>
@@ -85,15 +90,15 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="config.js?v=20261029c"></script>
-  <script src="catalog.js?v=20261029c"></script>
-  <script src="allsets.js?v=20261029c"></script>
-  <script src="market.js?v=20261029c"></script>
-  <script src="bricklink.js?v=20261029c"></script>
-  <script src="store.js?v=20261029c"></script>
-  <script src="promos.js?v=20261029c"></script>
-  <script src="limited.js?v=20261029c"></script>
-  <script src="media.js?v=20261029c"></script>
-  <script src="app.js?v=20261029c"></script>
+  <script src="config.js?v=20261029d"></script>
+  <script src="catalog.js?v=20261029d"></script>
+  <script src="allsets.js?v=20261029d"></script>
+  <script src="market.js?v=20261029d"></script>
+  <script src="bricklink.js?v=20261029d"></script>
+  <script src="store.js?v=20261029d"></script>
+  <script src="promos.js?v=20261029d"></script>
+  <script src="limited.js?v=20261029d"></script>
+  <script src="media.js?v=20261029d"></script>
+  <script src="app.js?v=20261029d"></script>
 </body>
 </html>

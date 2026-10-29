@@ -12,14 +12,18 @@
   --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e1116; --surface: #161a22; --surface-2: #1d222c; --surface-3: #252b37; --line: #2a303c; --fg: #eef0f4; --muted: #9aa3b2; --faint: #6b7383;
-    --brand: #5b78ff; --brand-deep: #4964f0; --brand-soft: #1c2546;
-    --red: #ff6b6e; --red-soft: #3a1e20; --ok: #4fd18b; --ok-soft: #15301f; --warn: #f0b552; --warn-soft: #372a12; --blue: #7d95ff; --blue-soft: #1c2546;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .3); color-scheme: dark;
-  }
+/* 기본은 화이트. 다크 모드는 사용자가 ☀️/🌙 버튼으로 고를 때만 (html[data-theme="dark"]) — 휴대폰 설정이 다크여도 처음엔 화이트 (2026-10-29 사용자 요청) */
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a22; --surface-2: #1d222c; --surface-3: #252b37; --line: #2a303c; --fg: #eef0f4; --muted: #9aa3b2; --faint: #6b7383;
+  --brand: #5b78ff; --brand-deep: #4964f0; --brand-soft: #1c2546;
+  --red: #ff6b6e; --red-soft: #3a1e20; --ok: #4fd18b; --ok-soft: #15301f; --warn: #f0b552; --warn-soft: #372a12; --blue: #7d95ff; --blue-soft: #1c2546;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .3); color-scheme: dark;
 }
+.theme-btn { flex: none; width: 40px; height: 40px; padding: 0; border-radius: 10px; border-color: transparent; background: transparent; color: var(--fg); font-size: 18px; }
+.theme-btn:hover { background: var(--surface-2); }
+.theme-btn { margin-left: auto; }
+.theme-btn + .nav { margin-left: 0; }
+.drawer-theme { width: 100%; justify-content: flex-start; gap: 10px; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
