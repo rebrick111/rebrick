@@ -108,7 +108,10 @@ header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb
 .sdcc-fig small { font-size: 11px; font-weight: 800; color: #1a1440; letter-spacing: .03em; }
 .banner.slim .sdcc-fig { width: 92px; }
 .banner.slim .sdcc-fig img { height: 82px; }
+.banner:has(> .sdcc-figs) h2, .banner:has(> .sdcc-figs) p { max-width: calc(100% - 250px); }
 @media (max-width: 720px) {
+  .banner:has(> .sdcc-figs) p { max-width: none; }
+  .banner:has(> .sdcc-figs) h2 { max-width: 62%; }
   /* 휴대폰: 글자를 가리지 않게 큰 배너는 오른쪽 위, 얇은 슬라이드는 오른쪽 아래에 한 장만 */
   .banner > .sdcc-figs { right: 14px; top: 18px; transform: none; }
   .banner.slim > .sdcc-figs { top: auto; bottom: 14px; }
