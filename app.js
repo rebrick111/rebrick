@@ -781,8 +781,17 @@ function themeCounts() {
   Object.values(CATALOG).forEach(c => { n[c.theme] = (n[c.theme] || 0) + 1; if (c.store) { s[c.theme] = (s[c.theme] || 0) + 1; if (c.store.flags.includes('retiringSoon')) r[c.theme] = (r[c.theme] || 0) + 1; } });
   return { n, s, r };
 }
-const themeTile = (t, n) => el('a', { class: 'ttile', href: `#/theme/${encodeURIComponent(t)}`, style: `--c:${THEMES[t]}` },
-  el('b', {}, t), el('span', {}, n ? `${n.toLocaleString('ko-KR')}개` : ''));
+// 테마 대표 세트 (상표 로고 대신 Rebrickable 제품 사진, 흰 바탕은 multiply로 지워 누끼처럼)
+const THEME_PIC = { '스타워즈': '75192', '테크닉': '42115', '아이콘즈': '10276', '시티': '60271', '해리포터': '71043', '마블': '76269', '아이디어': '21309',
+  '아키텍처': '21054', '보태니컬': '10311', '스피드 챔피언': '76916', '프렌즈': '41704', '닌자고': '71741', '올드 레고': '6080', '미니피규어': 'sw0515',
+  '디즈니': '43222', '마인크래프트': '21178', '크리에이터': '31109', '슈퍼 마리오': '71411', 'DC': '76240', '쥬라기 월드': '76956', '포켓몬': '72153', '듀플로': '10988' };
+const themeTile = (t, n) => {
+  const src = THEME_PIC[t] ? imgOf(THEME_PIC[t]) : '';
+  const img = src ? el('img', { src, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : '';
+  if (img) img.onerror = () => img.remove();
+  return el('a', { class: 'ttile' + (img ? ' pic' : ''), href: `#/theme/${encodeURIComponent(t)}`, style: `--c:${THEMES[t]}` },
+    img, el('b', {}, t), el('span', {}, n ? `${n.toLocaleString('ko-KR')}개` : ''));
+};
 function renderThemes() {
   const { n } = themeCounts();
   show(el('section', { class: 'section' },

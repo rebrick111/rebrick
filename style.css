@@ -224,6 +224,16 @@ main .inner { display: grid; gap: 28px; }
 .ttile::before { content: ""; position: absolute; right: -8px; top: -6px; width: 64px; aspect-ratio: 36 / 34; opacity: .2;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 38'%3E%3Crect x='7' y='0' width='10' height='8' rx='3' fill='%23fff'/%3E%3Crect x='23' y='0' width='10' height='8' rx='3' fill='%23fff'/%3E%3Crect x='2' y='5' width='36' height='29' rx='8' fill='%23fff'/%3E%3C/svg%3E") no-repeat center / contain; }
 .ttile b { font-size: 17px; font-weight: 800; letter-spacing: -.03em; }
+/* 대표 세트 사진 타일: 밝은 테마색 바탕 + 사진(흰 바탕을 multiply로 지움) + 아래 테마색 띠 */
+.ttile.pic { min-height: 150px; color: #111827; padding: 12px 14px; align-content: end;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, #fff) 0%, color-mix(in srgb, var(--c) 22%, #fff) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 18%, transparent); }
+.ttile.pic::before { display: none; }
+.ttile.pic::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--c); }
+.ttile.pic img { position: absolute; left: 50%; top: 10px; width: 78%; height: 62%; transform: translateX(-50%); object-fit: contain; mix-blend-mode: multiply; }
+.ttile.pic b { position: relative; font-size: 16px; }
+.ttile.pic span { position: relative; color: #4b5563; opacity: 1; font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) { .ttile.pic img { transition: transform .25s ease; } .ttile.pic:hover img { transform: translateX(-50%) scale(1.06); } }
 .ttile span { font-size: 12px; opacity: .85; }
 @media (prefers-reduced-motion: no-preference) { .ttile { transition: transform .15s; } .ttile:hover { transform: translateY(-2px); } }
 
