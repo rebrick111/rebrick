@@ -1,10 +1,10 @@
 /* 리브릭 — 흰 바탕 + 파란 브랜드색은 로고·주요 버튼에만 (번개장터·당근처럼 깔끔하게). 색은 모두 토큰 */
 :root {
-  --bg: #ffffff; --surface: #ffffff; --surface-2: #f4f5f8; --surface-3: #eceef3; --line: #e6e8ee; --fg: #111827; --muted: #6b7280; --faint: #9ca3af;
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #f4f5f8; --surface-3: #eceef3; --line: #e6e8ee; --fg: #111827; --muted: #5b6270; --faint: #717886;
   --brand: #3355ff; --brand-deep: #2440d6; --brand-ink: #ffffff; --brand-soft: #eef1ff; --accent: #ffc83d;
   /* 예전 이름(--brick)을 쓰는 곳도 브랜드색을 따름 */
   --brick: var(--brand); --brick-deep: var(--brand-deep); --brick-ink: var(--brand-ink);
-  --red: #e5383b; --red-soft: #fdecec; --ok: #12a150; --ok-soft: #e7f6ee; --warn: #b26a00; --warn-soft: #fff4dc; --blue: #3355ff; --blue-soft: #eef1ff;
+  --red: #d62f32; --red-soft: #fdecec; --ok: #0b8442; --ok-soft: #e7f6ee; --warn: #8f5400; --warn-soft: #fff1d3; --blue: #3355ff; --blue-soft: #eef1ff;
   --shadow: 0 1px 2px rgba(17, 24, 39, .04), 0 4px 16px rgba(17, 24, 39, .06);
   --radius: 16px;
   --font-ui: "Pretendard Variable", Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
@@ -14,7 +14,7 @@
 }
 /* 기본은 화이트. 다크 모드는 사용자가 ☀️/🌙 버튼으로 고를 때만 (html[data-theme="dark"]) — 휴대폰 설정이 다크여도 처음엔 화이트 (2026-10-29 사용자 요청) */
 :root[data-theme="dark"] {
-  --bg: #0e1116; --surface: #161a22; --surface-2: #1d222c; --surface-3: #252b37; --line: #2a303c; --fg: #eef0f4; --muted: #9aa3b2; --faint: #6b7383;
+  --bg: #0e1116; --surface: #161a22; --surface-2: #1d222c; --surface-3: #252b37; --line: #2a303c; --fg: #eef0f4; --muted: #a9b1bf; --faint: #8e96a5;
   --brand: #5b78ff; --brand-deep: #4964f0; --brand-soft: #1c2546;
   --red: #ff6b6e; --red-soft: #3a1e20; --ok: #4fd18b; --ok-soft: #15301f; --warn: #f0b552; --warn-soft: #372a12; --blue: #7d95ff; --blue-soft: #1c2546;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .3); color-scheme: dark;
@@ -336,7 +336,8 @@ main .inner { display: grid; gap: 28px; }
 .thumb::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(17, 24, 39, .05); pointer-events: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb .flag { position: absolute; left: 10px; top: 10px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 8px; background: rgba(17, 24, 39, .78); color: #fff; }
-.thumb .flag.store { background: #fff; color: var(--fg); box-shadow: var(--shadow); }
+/* 사진 위 딱지는 화면 모드와 상관없이 항상 흰 바탕 + 진한 글자 (다크 모드에서 흰 글자가 되던 문제) */
+.thumb .flag.store { background: #fff; color: #111827; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); font-weight: 800; }
 /* 사진 없을 때: 테마색 그라데이션 + 큰 세트번호 + 브릭 실루엣 */
 .ph { width: 100%; height: 100%; display: grid; align-content: end; padding: 14px; color: #fff; position: relative; overflow: hidden;
       background: linear-gradient(150deg, color-mix(in srgb, var(--c, #6c6f7a) 70%, #fff) 0%, var(--c, #6c6f7a) 55%, color-mix(in srgb, var(--c, #6c6f7a) 70%, #000) 100%); }
