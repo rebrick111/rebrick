@@ -846,6 +846,25 @@ async function renderTheme(t) {
       el('div', { class: 'bar' }, el('span', { class: 'stat' }, el('b', {}, (n[t] || 0).toLocaleString('ko-KR')), '역대 세트'),
         el('span', { class: 'stat' }, el('b', {}, s[t] || 0), '공식몰 판매 중'), el('span', { class: 'stat' }, el('b', {}, r[t] || 0), '곧 단종'))),
     rail('명작 세트 시세', '단종된 명작이 지금 얼마인지, 정가보다 몇 배 올랐는지', (ICONIC[t] || []).map(iconCard)),
+    (() => {   // 지금 공식몰에서 파는 이 테마 세트 전부 (비싼 순, 12개씩 더 보기)
+      if (!store.length) return '';
+      const rows = [...store].sort((a, b) => (b[1].store.price || b[1].msrp) - (a[1].store.price || a[1].msrp));
+      const grid = el('div', { class: 'grid' });
+      let shown = 0;
+      const more = el('button', { type: 'button', class: 'btn', style: 'justify-self:center' });
+      const add = () => {
+        grid.append(...rows.slice(shown, shown + 12).map(x => setCard(x, storeBadge(x[0])?.text || '')));
+        shown = Math.min(rows.length, shown + 12);
+        more.hidden = shown >= rows.length;
+        more.textContent = `더 보기 (${rows.length - shown}개 남음)`;
+      };
+      more.onclick = add;
+      add();
+      return el('section', { class: 'section' },
+        el('div', { class: 'sec-head' }, el('div', {}, el('h2', {}, `공식몰에서 파는 중 ${rows.length}개`), el('p', {}, `레고 공식몰 판매가 기준 (${window.BRICK_STORE_DATE || window.BRICK_CATALOG_DATE}) · 누르면 중고 시세까지`)),
+          el('a', { class: 'more', href: `#/prices/${encodeURIComponent(t)}` }, '정가표로 보기 →')),
+        grid, more);
+    })(),
     rail('코믹콘 한정판', '행사장에서만 나온 한정판', lim.map(limCard), null, '#/limited'),
     rail('곧 단종', '단종 전에 공식몰 정가로 살 마지막 기회', store.filter(([, c]) => c.store.flags.includes('retiringSoon')).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, 12).map(x => setCard(x, '곧 단종')), null, '#/new/retire'),
     rail('신제품·예약', '', store.filter(([, c]) => c.store.flags.includes('new') || /출시 예정|선주문/.test(c.store.avail)).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, 12).map(x => setCard(x, storeBadge(x[0])?.text || '신제품')), null, '#/new/soon'),
