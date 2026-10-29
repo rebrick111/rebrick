@@ -209,7 +209,7 @@ main .inner { display: grid; gap: 28px; }
 .banner .btn.glass { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); color: #fff; }
 .banner .btn.glass:hover { background: rgba(255, 255, 255, .2); }
 .banner .art { position: absolute; right: -10px; bottom: -20px; width: min(46%, 440px); pointer-events: none; }
-.banner > :not(.art) { position: relative; z-index: 1; }
+.banner > :not(.art, .sdcc-figs) { position: relative; z-index: 1; }
 @media (max-width: 720px) {
   .banner { padding: 28px 22px 150px; border-radius: 20px; }
   .banner .art { width: 72%; right: -8%; bottom: -26px; }
