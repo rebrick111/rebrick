@@ -140,7 +140,8 @@ function miniThumb(no) {
   return el('a', { class: 'refthumb', href: `#/set/${encodeURIComponent(no)}`, 'aria-label': `${no} 시세` }, img, el('span', { class: 'setno' }, `#${no}`));
 }
 const placeholder = it => el('div', { class: 'ph', style: `--c:${THEMES[it.theme] || THEMES['기타']}`, role: 'img', 'aria-label': `${it.name || it.set_no || ''} 사진 없음` },
-  el('small', {}, it.theme || ''), el('span', { class: String(it.set_no || '').length > 6 ? 'long' : null }, it.set_no || '?'));
+  el('small', {}, it.theme || ''), el('span', { class: String(it.set_no || '').length > 6 ? 'long' : null },
+    it.set_no || (it.cond === 'parts' ? 'BULK' : it.theme === '미니피규어' ? 'FIG' : 'LEGO')));
 // 판매자 사진 → 없으면 공식 이미지(판매 글이면 '공식 이미지' 표시) → 그것도 없으면 테마색 자리표시
 function thumb(it) {
   if (it.photos?.length) return el('img', { src: it.photos[0], alt: `${it.name} 사진`, loading: 'lazy' });
@@ -426,7 +427,7 @@ function listingCard(it) {
       el('div', { class: 'price' }, won(it.price)),
       v ? el('div', { class: v.cls }, v.text) : '',
       el('div', { class: 'tags' }, el('span', { class: `cond ${it.cond}` }, COND[it.cond]), tradeBadges(it)),
-      el('div', { class: 'meta' }, [`#${it.set_no}`, it.region || '지역 미정', p ? `피스당 ${p.toLocaleString('ko-KR')}원` : ''].filter(Boolean).join(' · '))));
+      el('div', { class: 'meta' }, [it.set_no ? `#${it.set_no}` : '', it.region || '지역 미정', p ? `피스당 ${p.toLocaleString('ko-KR')}원` : ''].filter(Boolean).join(' · '))));
 }
 // 공식몰 세트 카드 (상품이 아직 없을 때도 첫 화면이 비어 보이지 않게)
 function setCard([no, c], flagText) {
@@ -867,7 +868,7 @@ function offsiteText(it) {
   const m = msrpOf(it);
   const parts = [it.has_box ? '박스 O' : '박스 X', it.has_manual ? '설명서 O' : '설명서 X',
     it.figs_total != null ? `미니피규어 ${it.figs_have ?? '?'}/${it.figs_total}` : it.all_figs ? '미니피규어 전부' : ''].filter(Boolean).join(' · ');
-  return [`[레고 ${it.set_no}] ${it.name} (${COND[it.cond]})`,
+  return [`[레고${it.set_no ? ' ' + it.set_no : ''}] ${it.name} (${COND[it.cond]})`,
     `가격: ${won(it.price)}` + (m ? ` (공식몰 정가 ${won(m)})` : ''),
     parts ? `구성: ${parts}` : '',
     [it.trade_direct ? `직거래${it.meet_place ? ` (${it.meet_place})` : ''}` : '', it.trade_delivery ? `택배${it.ship_fee ? ` +${won(it.ship_fee)}` : ' (택배비 포함)'}` : ''].filter(Boolean).join(' / '),
@@ -1323,14 +1324,14 @@ async function renderItem(id) {
 
   show(el('div', { class: 'detail' }, gallery,
     el('section', { class: 'panel' },
-      el('div', { class: 'setno' }, `#${it.set_no} · ${it.theme}`),
+      el('div', { class: 'setno' }, [it.set_no ? `#${it.set_no}` : (it.cond === 'parts' ? '벌크·부품' : it.theme === '미니피규어' ? '미니피규어' : '묶음·기타'), it.theme].join(' · ')),
       el('h2', {}, it.name),
       el('div', { class: 'bar' }, el('span', { class: 'price' }, won(it.price)), el('span', { class: `cond ${it.cond}` }, COND[it.cond]),
         it.status !== 'selling' ? el('span', { class: 'cond missing' }, STATUS[it.status]) : ''),
       v ? el('div', { class: v.cls }, `${v.text} (공식몰 정가 ${won(m)}, ${window.BRICK_CATALOG_DATE} 기준)`) : '',
-      mk ? el('div', { class: 'small' }, '중고 시세 참고: ' + [mk.sealed && `미개봉 ${fmtRange(mk.sealed)}`, mk.used && `개봉 ${fmtRange(mk.used)}`].filter(Boolean).join(' · ') + ' ',
+      !it.set_no ? '' : mk ? el('div', { class: 'small' }, '중고 시세 참고: ' + [mk.sealed && `미개봉 ${fmtRange(mk.sealed)}`, mk.used && `개봉 ${fmtRange(mk.used)}`].filter(Boolean).join(' · ') + ' ',
         el('a', { href: `#/set/${it.set_no}` }, '시세 자세히 →')) : el('a', { class: 'small', href: `#/set/${it.set_no}` }, '이 세트 시세 보기 →'),
-      (() => {   // 브릭링크(해외) 평균과 비교
+      !it.set_no ? '' : (() => {   // 브릭링크(해외) 평균과 비교 (번호 있을 때만)
         const b = ['sealed', 'complete'].includes(it.cond) ? blOf(it.set_no, it.cond) : null;
         return el('div', { class: 'small' }, '🌏 ', b && it.price ? `브릭링크 ${it.cond === 'sealed' ? '새것' : '중고'} 평균 ${won(b[1])} → 이 상품은 ${diffText(it.price, b[1], '브릭링크')} ` : '',
           el('a', { href: blLink(it.set_no), target: '_blank', rel: 'noopener' }, '브릭링크 가격 보기 ↗'));
@@ -1384,8 +1385,39 @@ async function renderForm(id, presetSet = '') {
   const { data: prof } = await sb.from('profiles').select('region').eq('id', me.id).maybeSingle();
   const v = (k, d = '') => it ? (it[k] ?? d) : d;
   const inp = (id, attrs) => el('input', { id, ...attrs });
-  const fSet = inp('fSet', { required: true, placeholder: '예: 10294 · 미니피규어는 sw0515', value: v('set_no', presetSet) });
-  const fName = inp('fName', { required: true, placeholder: '세트 이름', value: v('name') });
+  // 번호는 선택: 알면 이름·정가·시세 자동, 몰라도 이름만 쓰면 등록 (벌크·묶음은 번호 칸 숨김)
+  const fSet = inp('fSet', { placeholder: '예: 10294 (모르면 비워 두세요)', value: v('set_no', presetSet) });
+  const fName = inp('fName', { required: true, maxlength: 100, placeholder: '예: 밀레니엄 팔콘', value: v('name') });
+  // 무엇을 파나요? (DB엔 따로 칸 없이: 미니피규어 = 테마 '미니피규어', 벌크 = 상태 '부품·벌크', 묶음 = 번호 없는 세트)
+  const KINDS = {
+    set: ['🧱 세트', '세트번호 (선택)', '예: 10294 (모르면 비워 두세요)', '예: 밀레니엄 팔콘'],
+    fig: ['🧍 미니피규어', '미니피규어 번호 (선택)', '예: sw0515 (모르면 비워 두세요)', '예: 스타워즈 클론 트루퍼 미니피규어 3개'],
+    bulk: ['🪣 벌크·부품', '', '', '예: 레고 벌크 2kg (시티·테크닉 섞임)'],
+    lot: ['📦 여러 개 묶음', '', '', '예: 닌자고 세트 5개 일괄'],
+  };
+  let kind = it ? (it.cond === 'parts' ? 'bulk' : it.theme === '미니피규어' ? 'fig' : !it.set_no ? 'lot' : 'set') : (isFig(presetSet) ? 'fig' : 'set');
+  const setLabel = el('span', {});
+  const setWrap = el('label', { class: 'f' }, setLabel, fSet);
+  const kindBox = el('div', { class: 'kinds', role: 'radiogroup', 'aria-label': '무엇을 파나요?' });
+  const applyKind = (first = false) => {
+    const [, lab, ph, nameph] = KINDS[kind];
+    setWrap.hidden = !lab;
+    setLabel.textContent = lab;
+    if (ph) fSet.placeholder = ph;
+    fName.placeholder = nameph;
+    figHint.hidden = kind !== 'fig';
+    if (!lab && !first) { fSet.value = ''; found.textContent = ''; }
+    if (!first) {
+      if (kind === 'bulk') fCond.value = 'parts';
+      else if (fCond.value === 'parts') fCond.value = 'complete';
+      if (kind === 'fig') fTheme.value = '미니피규어';
+      else if (fTheme.value === '미니피규어') fTheme.value = '기타';
+    }
+    kindBox.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.k === kind)));
+    if (formReady) { updatePriceHint(); updateScore(); }
+  };
+  Object.entries(KINDS).forEach(([k, [t]]) => kindBox.append(el('button', { type: 'button', role: 'radio', class: 'kind', 'data-k': k, 'aria-checked': 'false',
+    onclick: () => { kind = k; applyKind(); } }, t)));
   const fTheme = el('select', { id: 'fTheme' }, Object.keys(THEMES).map(t => el('option', { value: t, selected: v('theme', '기타') === t }, t)));
   const fPieces = inp('fPieces', { type: 'number', min: 0, value: v('pieces') || '' });
   const fYear = inp('fYear', { type: 'number', min: 1949, max: 2100, value: v('year') || '' });
@@ -1441,7 +1473,8 @@ async function renderForm(id, presetSet = '') {
     const chk = id => form.querySelector('#' + id)?.checked;
     const items = [
       [photos.length >= 3 ? 25 : photos.length ? 12 : 0, 25, photos.length >= 3 ? `사진 ${photos.length}장` : `사진을 3장 이상 올리세요 (지금 ${photos.length}장) — 박스 앞·뒤, 미니피규어, 흠집`],
-      [CATALOG[no] || isFig(no) ? 10 : no ? 5 : 0, 10, CATALOG[no] ? '세트번호 확인됨' : '세트번호를 넣으면 이름·정가가 자동으로 붙어요'],
+      kind === 'bulk' || kind === 'lot' ? [fName.value.trim().length >= 6 ? 10 : 4, 10, fName.value.trim().length >= 6 ? '제목 확인됨' : '제목에 무엇이 들었는지 적어 주세요 (예: 벌크 2kg, 세트 5개)']
+        : [CATALOG[no] || isFig(no) ? 10 : fName.value.trim() ? 7 : 0, 10, CATALOG[no] ? '번호 확인됨' : '번호를 알면 넣어 주세요 — 이름·정가·시세가 자동으로 붙어요 (선택)'],
       [!pr ? 0 : !s ? 12 : pr <= s.slow * 1.05 ? 20 : 8, 20, !pr ? '가격을 정하세요' : s && pr > s.slow * 1.05 ? `시세보다 높아요 (여유 있게 ${won(s.slow)}) — 오래 걸릴 수 있어요` : '가격이 시세 안에 있어요'],
       [fDesc.value.trim().length >= 60 ? 15 : fDesc.value.trim().length >= 15 ? 7 : 0, 15, fDesc.value.trim().length >= 60 ? '설명 충분' : '설명을 조금 더 — "설명 자동 작성"을 눌러 보세요'],
       [(chk('f-has_box') || chk('f-has_manual') || fFigsTotal.value !== '') ? 15 : 5, 15, fFigsTotal.value !== '' ? '상태 카드 작성됨' : '상태 카드에 미니피규어 수를 적으면 믿음이 커져요'],
@@ -1502,13 +1535,15 @@ async function renderForm(id, presetSet = '') {
 
   const st = status();
   const submit = el('button', { type: 'submit', class: 'primary' }, it ? '고친 내용 저장' : '등록하기');
+  const figHint = el('div', { class: 'hint' }, '🧍 브릭링크 번호(예: sw0515)를 알면 넣어 주세요. 같은 캐릭터도 모양이 여러 가지라 번호가 있으면 시세를 정확히 비교할 수 있어요. 몰라도 괜찮아요. ',
+    el('a', { href: 'https://www.bricklink.com/catalogList.asp?catType=M', target: '_blank', rel: 'noopener' }, '브릭링크에서 번호 찾기 ↗'));
   const form = el('form', { class: 'panel' },
     el('h2', {}, it ? '상품 수정' : '판매 등록'),
-    el('div', { class: 'fields' }, el('label', { class: 'f' }, '세트번호', fSet), el('label', { class: 'f wide' }, '이름', fName),
-      el('label', { class: 'f' }, '테마', fTheme), el('label', { class: 'f' }, '피스 수', fPieces), el('label', { class: 'f' }, '출시연도', fYear)),
+    el('div', { class: 'f' }, el('b', { class: 'small', style: 'color:var(--fg)' }, '무엇을 파나요?'), kindBox),
+    el('div', { class: 'fields' }, setWrap, el('label', { class: 'f wide' }, '제목 (이름)', fName),
+      el('label', { class: 'f' }, '테마', fTheme), el('label', { class: 'f' }, '피스 수 (선택)', fPieces), el('label', { class: 'f' }, '출시연도 (선택)', fYear)),
     found,
-    el('div', { class: 'hint' }, '🧍 미니피규어는 브릭링크 번호(예: sw0515, sh0715)를 세트번호 칸에 넣어 주세요. 같은 캐릭터도 모양이 여러 가지라 번호가 있어야 시세를 정확히 비교할 수 있어요. ',
-      el('a', { href: 'https://www.bricklink.com/catalogList.asp?catType=M', target: '_blank', rel: 'noopener' }, '브릭링크에서 번호 찾기 ↗')),
+    figHint,
     el('div', { class: 'fields' }, el('label', { class: 'f' }, '상태', fCond), el('label', { class: 'f' }, '판매 가격 (원)', fPrice, priceHint),
       el('label', { class: 'f' }, '거래 지역', fRegion)),
     sugg,
@@ -1573,7 +1608,8 @@ async function renderForm(id, presetSet = '') {
     } catch (err) { st.className = 'status err'; st.textContent = needUpdate(err); submit.disabled = false; }
   };
   show(form);
-  if (!it) (presetSet ? fPrice : fSet).focus();
+  applyKind(true);
+  if (!it) (presetSet ? fPrice : setWrap.hidden ? fName : fSet).focus();
 }
 
 // ---- 로그인 (이메일로 받은 링크를 누르면 로그인) ------------------------------

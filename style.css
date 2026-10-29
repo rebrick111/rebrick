@@ -295,6 +295,12 @@ main .inner { display: grid; gap: 28px; }
 .store .bar { margin-top: 6px; }
 .store .btn { padding: 6px 12px; font-size: 13px; }
 
+/* 판매 등록: 무엇을 파나요? */
+.kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+@media (max-width: 560px) { .kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kind { padding: 12px 8px; border-radius: 12px; font-size: 14px; font-weight: 700; background: var(--surface-2); border: 1.5px solid transparent; color: var(--fg); }
+.kind[aria-checked="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+
 /* 판매 도우미 */
 .psugg { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .psugg:empty { display: none; }
