@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>리브릭</title>
+  <meta name="description" content="레고만큼은 리브릭 — 세트번호로 찾고, 정가·시세와 비교해서 사고팔아요.">
+  <meta name="theme-color" content="#ffffff">
+  <!-- 카톡·SNS 공유 미리보기 -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="리브릭">
+  <meta property="og:title" content="리브릭 — 레고만큼은, 리브릭">
+  <meta property="og:description" content="세트번호 하나로 정가·중고 시세·브릭링크·코믹콘 한정판 가격까지. 레고 중고거래는 시세 보고 하세요.">
+  <meta property="og:image" content="https://rebrick111.github.io/rebrick/og.png">
+  <meta property="og:url" content="https://rebrick111.github.io/rebrick/">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='7' y='3' width='10' height='8' rx='3' fill='%233355ff'/%3E%3Crect x='23' y='3' width='10' height='8' rx='3' fill='%23ffc83d'/%3E%3Crect x='2' y='8' width='36' height='29' rx='8' fill='%233355ff'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M13.4 20.6 A7 7 0 0 1 26.4 20'/%3E%3Cpath d='M26.6 25.4 A7 7 0 0 1 13.6 26'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Cpath d='M27.6 23.4 L29.4 18.6 L24.2 19.9 Z'/%3E%3Cpath d='M12.4 22.6 L10.6 27.4 L15.8 26.1 Z'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 로고: 파란 브릭 + 노란 스터드 하나 + 다시(re) 도는 화살표 = "다시 쓰는 브릭" -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="mark" viewBox="0 0 40 40">
+      <rect x="7" y="3" width="10" height="8" rx="3" fill="#3355ff"/><rect x="23" y="3" width="10" height="8" rx="3" fill="#ffc83d"/>
+      <rect x="2" y="8" width="36" height="29" rx="8" fill="#3355ff"/>
+      <g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M13.4 20.6 A7 7 0 0 1 26.4 20"/><path d="M26.6 25.4 A7 7 0 0 1 13.6 26"/></g>
+      <g fill="#fff"><path d="M27.6 23.4 L29.4 18.6 L24.2 19.9 Z"/><path d="M12.4 22.6 L10.6 27.4 L15.8 26.1 Z"/></g>
+    </symbol>
+  </defs></svg>
+
+  <header class="top">
+    <div class="inner topbar gutter">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="전체 메뉴 열기" aria-expanded="false" aria-controls="drawer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <a href="#/" class="logo" aria-label="리브릭 처음 화면"><svg class="mark" aria-hidden="true"><use href="#mark"/></svg><span class="word">리브릭</span></a>
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="세트번호나 이름으로 찾기 (예: 10294, 타이타닉)" aria-label="상품 찾기">
+      </label>
+      <nav class="nav" id="nav" aria-label="내 메뉴"></nav>
+    </div>
+    <div class="inner gutter">
+      <nav class="menu" id="menu" aria-label="둘러보기">
+        <a href="#/">홈</a><a href="#/prices">시세표</a><a href="#/themes">테마</a><a href="#/limited">한정판·SDCC</a><a href="#/new">신제품·단종</a><a href="#/news">레고 소식</a><a href="#/youtube">유튜버</a><a href="#/stores">레고스토어</a>
+      </nav>
+    </div>
+  </header>
+  <!-- ☰ 전체 메뉴 (왼쪽에서 나오는 서랍) -->
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-scrim" data-close></div>
+    <nav class="drawer-panel" aria-label="전체 메뉴" tabindex="-1">
+      <div class="drawer-head">
+        <a href="#/" class="logo"><svg class="mark" aria-hidden="true"><use href="#mark"/></svg><span class="word">리브릭</span></a>
+        <button type="button" class="drawer-x" data-close aria-label="메뉴 닫기">✕</button>
+      </div>
+      <a class="btn primary drawer-sell" href="#/sell">＋ 내 세트 팔기</a>
+      <div class="dgroup"><b>🛒 거래</b>
+        <a href="#/">홈 · 올라온 매물</a><a href="#/me">내 판매·내 정보</a><a href="#/chats">채팅</a><a href="#/collection">내 컬렉션</a></div>
+      <div class="dgroup"><b>📈 시세·정보</b>
+        <a href="#/prices">정가·시세표</a><a href="#/themes">테마별 둘러보기</a><a href="#/limited">한정판·SDCC</a><a href="#/new/soon">신제품·예약</a><a href="#/new/retire">곧 단종</a><a href="#/compare">한국 vs 브릭링크</a></div>
+      <div class="dgroup"><b>📰 소식</b>
+        <a href="#/news">레고 소식</a><a href="#/youtube">레고 유튜버</a><a href="#/stores">전국 레고스토어</a><a href="#/promos">공식몰 프로모션</a></div>
+      <div class="dgroup"><b>💡 도움말</b>
+        <a href="#/sellguide">판매 꿀팁</a><a href="#/safety">안전거래·사기 예방</a><a href="#/guide/direct">직거래 가이드</a><a href="#/guide/delivery">택배거래 가이드</a></div>
+      <div class="drawer-foot" id="drawerFoot"></div>
+    </nav>
+  </div>
+  <main class="gutter"><div class="inner" id="view"></div></main>
+  <footer class="foot gutter">
+    <div class="inner">
+      <div class="foot-brand"><svg class="mark" aria-hidden="true"><use href="#mark"/></svg><b>리브릭</b><span>레고만큼은, 리브릭</span></div>
+      <nav class="footnav" aria-label="안내"><a href="#/guide/direct">직거래 가이드</a><a href="#/guide/delivery">택배거래 가이드</a><a href="#/safety">안전거래·사기 예방</a><a href="#/prices">정가·시세표</a><a href="#/new">신제품·곧 단종</a><a href="#/promos">공식몰 프로모션</a><a href="#/compare">한국 vs 브릭링크</a></nav>
+      <p>리브릭은 개인 간 브릭 세트 중고거래를 돕는 사이트예요. 돈을 대신 맡아 주지 않으며, 거래와 결제는 판매자와 구매자가 직접 해요.<br>
+      LEGO®는 LEGO Group의 상표이며, 리브릭은 LEGO Group과 관련이 없어요.<br>
+      역대 세트·미니피규어 목록과 제품 이미지: <a href="https://rebrickable.com" target="_blank" rel="noopener">Rebrickable</a> · 해외 시세 참고: BrickLink · 판매 글의 "공식 이미지"는 실제 판매 상품 사진이 아니에요.</p>
+    </div>
+  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script src="catalog.js"></script>
+  <script src="allsets.js"></script>
+  <script src="market.js"></script>
+  <script src="bricklink.js"></script>
+  <script src="store.js"></script>
+  <script src="promos.js"></script>
+  <script src="limited.js"></script>
+  <script src="media.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
