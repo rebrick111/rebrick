@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261030l">
+  <link rel="stylesheet" href="style.css?v=20261030m">
 </head>
 <body>
   <!-- 로고: 파란 브릭 + 노란 스터드 하나 + 다시(re) 도는 화살표 = "다시 쓰는 브릭" -->
@@ -47,6 +47,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="q" type="search" placeholder="세트번호나 이름으로 찾기 (예: 10294, 타이타닉)" aria-label="상품 찾기">
       </label>
+      <a class="bell-btn" id="bellBtn" href="#/alerts" aria-label="알림·즐겨찾기" title="알림·즐겨찾기" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM10 20.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       <button type="button" class="theme-btn" id="themeBtn" aria-label="다크 모드로 바꾸기" title="화면 밝기 바꾸기">🌙</button>
       <nav class="nav" id="nav" aria-label="내 메뉴"></nav>
     </div>
@@ -66,7 +67,7 @@
       </div>
       <a class="btn primary drawer-sell" href="#/sell">＋ 내 세트 팔기</a>
       <div class="dgroup"><b>🛒 거래</b>
-        <a href="#/">홈 · 올라온 매물</a><a href="#/me">내 판매·내 정보</a><a href="#/chats">채팅</a><a href="#/collection">내 컬렉션</a></div>
+        <a href="#/">홈 · 올라온 매물</a><a href="#/me">내 판매·내 정보</a><a href="#/chats">채팅</a><a href="#/alerts">🔔 알림·⭐ 즐겨찾기</a><a href="#/collection">내 컬렉션</a></div>
       <div class="dgroup"><b>📈 시세·정보</b>
         <a href="#/prices">정가·시세표</a><a href="#/themes">테마별 둘러보기</a><a href="#/limited">한정판·SDCC</a><a href="#/new/soon">신제품·예약</a><a href="#/new/retire">곧 단종</a><a href="#/compare">한국 vs 브릭링크</a></div>
       <div class="dgroup"><b>📰 소식</b>
@@ -94,16 +95,16 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="config.js?v=20261030l"></script>
-  <script src="catalog.js?v=20261030l"></script>
-  <script src="allsets.js?v=20261030l"></script>
-  <script src="market.js?v=20261030l"></script>
-  <script src="bricklink.js?v=20261030l"></script>
-  <script src="store.js?v=20261030l"></script>
-  <script src="promos.js?v=20261030l"></script>
-  <script src="limited.js?v=20261030l"></script>
-  <script src="media.js?v=20261030l"></script>
-  <script src="legoimg.js?v=20261030l"></script>
-  <script src="app.js?v=20261030l"></script>
+  <script src="config.js?v=20261030m"></script>
+  <script src="catalog.js?v=20261030m"></script>
+  <script src="allsets.js?v=20261030m"></script>
+  <script src="market.js?v=20261030m"></script>
+  <script src="bricklink.js?v=20261030m"></script>
+  <script src="store.js?v=20261030m"></script>
+  <script src="promos.js?v=20261030m"></script>
+  <script src="limited.js?v=20261030m"></script>
+  <script src="media.js?v=20261030m"></script>
+  <script src="legoimg.js?v=20261030m"></script>
+  <script src="app.js?v=20261030m"></script>
 </body>
 </html>
