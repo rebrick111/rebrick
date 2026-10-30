@@ -667,7 +667,9 @@ async function soldChart(no) {
     const hit = document.createElementNS(NS, 'circle');
     hit.setAttribute('cx', X(p.k)); hit.setAttribute('cy', Y(p.v)); hit.setAttribute('r', 16); hit.setAttribute('class', 'hit');
     const on = () => { tip.textContent = `${p.k.slice(0, 4)}년 ${+p.k.slice(5)}월 · 평균 ${won(p.v)} · ${p.n}건`; tip.hidden = false;
-      tip.style.left = `${X(p.k) / W * 100}%`; tip.style.top = `${Y(p.v) / H * 100}%`; };
+      const fx = X(p.k) / W;   // 양 끝 점은 말풍선이 화면 밖으로 안 나가게 안쪽으로 붙임
+      tip.style.left = `${fx * 100}%`; tip.style.top = `${Y(p.v) / H * 100}%`;
+      tip.style.transform = `translate(${fx < 0.3 ? '-12px' : fx > 0.7 ? 'calc(-100% + 12px)' : '-50%'}, calc(-100% - 12px))`; };
     hit.addEventListener('pointerenter', on); hit.addEventListener('pointerdown', on); hit.addEventListener('pointerleave', () => { tip.hidden = true; });
     svg.append(hit);
   });
