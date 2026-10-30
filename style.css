@@ -857,15 +857,27 @@ a.seg-b { text-align: center; text-decoration: none; }
 .stat-b b { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
 .stat-b span { font-size: 12px; color: var(--muted); }
 .stat-b:hover { background: var(--surface-3); }
-/* 브릭 신뢰도: 레고 브릭 5칸 */
-.trust-m { display: grid; gap: 6px; }
-.trust-top { display: flex; align-items: baseline; gap: 8px; }
-.trust-top b { font-size: 14px; }
-.bricks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.bricks i { position: relative; height: 12px; border-radius: 3px; background: var(--surface-3); }
-.bricks i::before, .bricks i::after { content: ''; position: absolute; top: -4px; width: 22%; height: 5px; border-radius: 2px 2px 0 0; background: inherit; }
-.bricks i::before { left: 18%; } .bricks i::after { right: 18%; }
-.bricks i.on { background: var(--accent); }
+/* 매너 등급 SS~F: 등급마다 색 (SS 금색 → F 빨강). 글자는 항상 흰색이라 배경은 진한 색만 */
+.g-SS { --g1: #f5b301; --g2: #e07b00; } .g-S { --g1: #8b5cf6; --g2: #6d28d9; } .g-A { --g1: #3b82f6; --g2: #2440d6; }
+.g-B { --g1: #16a34a; --g2: #0b8442; } .g-C { --g1: #6b7280; --g2: #4b5563; } .g-D { --g1: #f97316; --g2: #c2410c; } .g-F { --g1: #ef4444; --g2: #b91c1c; }
+.gchip { display: inline-grid; place-items: center; min-width: 26px; height: 20px; padding: 0 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle;
+         background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; font-size: 11.5px; font-weight: 900; letter-spacing: .02em; }
+.shop-name h2 .gchip { margin-left: 2px; height: 22px; font-size: 12.5px; }
+.gcard { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.gbadge { display: grid; place-items: center; align-content: center; width: 64px; height: 64px; border-radius: 18px; color: #fff;
+          background: linear-gradient(135deg, var(--g1), var(--g2)); box-shadow: 0 6px 16px color-mix(in srgb, var(--g2) 35%, transparent); }
+.gbadge b { font-size: 26px; font-weight: 900; line-height: 1; letter-spacing: -.02em; }
+.gbadge small { font-size: 10.5px; font-weight: 700; opacity: .9; }
+.ginfo { display: grid; gap: 6px; min-width: 0; }
+.gbar { height: 8px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.gbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--g1), var(--g2)); }
+.ghelp summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.ghelp p { margin: 6px 0; }
+.gscale { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.gscale .gchip { margin-left: 0; }
+/* 비밀번호 조건 체크 */
+.pwrules { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; font-weight: 600; color: var(--faint); }
+.pwrules .ok { color: var(--ok); }
 /* 후기 */
 .rv-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rv-rate { margin-left: auto; font-size: 13px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--surface-2); }

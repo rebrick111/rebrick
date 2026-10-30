@@ -678,11 +678,30 @@ async function reviewBox(l, targetId, targetNick) {
 // 프로필 공통: 닉네임 첫 글자 동그라미 (닉네임마다 색이 조금씩 다름) · 신뢰 막대 (👍 비율을 브릭 5칸으로)
 const nickHue = n => [...String(n || '?')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
 const avatarEl = (nick, size = '') => el('div', { class: 'avatar ' + size, style: `--h:${nickHue(nick)}`, 'aria-hidden': 'true' }, String(nick || '?').slice(0, 1));
-function trustMeter(s) {
-  const fill = s.pct == null ? 0 : Math.round(s.pct / 20);   // 0~5칸
-  return el('div', { class: 'trust-m' },
-    el('div', { class: 'trust-top' }, el('b', {}, '브릭 신뢰도'), el('span', { class: 'small' }, s.n ? `👍 ${s.pct}% · 후기 ${s.n}개` : '아직 후기가 없어요')),
-    el('div', { class: 'bricks', role: 'img', 'aria-label': s.n ? `좋았어요 ${s.pct}%` : '후기 없음' }, [0, 1, 2, 3, 4].map(i => el('i', { class: i < fill ? 'on' : '' }))));
+// ---- 매너 등급 SS~F (2026-10-30, 당근 '온도' 대신 등급) --------------------------------
+// 모두 50점(B)에서 시작 · 거래 후기 😍최고예요 +4 / 🙂좋아요 +2 / 😕별로예요 −6 · 판매완료 1건 +1 (최대 +10) · 0~100점
+// SS 90↑ · S 80↑ · A 70↑ · B 50↑ · C 40↑ · D 25↑ · F 25 미만 → 첫 후기 '별로예요' 한 번이면 C, 최고예요 5번이면 A
+const GRADES = [['SS', 90, '최고의 매너'], ['S', 80, '아주 믿을 만해요'], ['A', 70, '믿을 만해요'], ['B', 50, '보통'], ['C', 40, '조금 주의'], ['D', 25, '주의가 필요해요'], ['F', 0, '거래 주의']];
+function brickGrade(s, soldN = 0) {
+  const score = Math.max(0, Math.min(100, 50 + s.best * 4 + (s.good - s.best) * 2 - (s.n - s.good) * 6 + Math.min(10, soldN)));
+  const i = GRADES.findIndex(([, min]) => score >= min);
+  const [g, min, label] = GRADES[i], up = GRADES[i - 1];
+  return { score, g, label, min, next: up?.[0], nextMin: up?.[1], need: up ? up[1] - score : 0 };
+}
+const gradeChip = gr => el('span', { class: 'gchip g-' + gr.g, title: `매너 등급 ${gr.g} · ${gr.label} (${gr.score}점)` }, gr.g);
+// 프로필용 큰 등급 카드: 등급 배지 · 다음 등급까지 막대 · 계산 방법
+function gradeCard(s, soldN) {
+  const gr = brickGrade(s, soldN);
+  const pct = gr.next ? Math.round((gr.score - gr.min) / (gr.nextMin - gr.min) * 100) : 100;
+  return el('div', { class: 'gcard' },
+    el('div', { class: 'gbadge g-' + gr.g, role: 'img', 'aria-label': `매너 등급 ${gr.g}` }, el('b', {}, gr.g), el('small', {}, '등급')),
+    el('div', { class: 'ginfo' },
+      el('div', {}, el('b', {}, `매너 등급 ${gr.g}`), el('span', { class: 'small' }, ` · ${gr.label} · ${gr.score}점`)),
+      el('div', { class: 'gbar', role: 'img', 'aria-label': gr.next ? `${gr.next}등급까지 ${gr.need}점` : '최고 등급' }, el('i', { class: 'g-' + gr.g, style: `width:${Math.max(4, pct)}%` })),
+      el('div', { class: 'small' }, gr.next ? `${gr.next}등급까지 ${gr.need}점` : '최고 등급이에요 🏆', s.n ? ` · 후기 ${s.n}개 · 👍 ${s.pct}%` : ' · 아직 받은 후기가 없어요'),
+      el('details', { class: 'ghelp' }, el('summary', {}, '등급은 어떻게 정해지나요?'),
+        el('p', { class: 'small' }, '모두 50점(B등급)에서 시작해요. 거래가 끝난 뒤 받은 후기에 따라 😍최고예요 +4점, 🙂좋아요 +2점, 😕별로예요 −6점, 판매완료 1건마다 +1점(최대 +10점)이 더해져요.'),
+        el('div', { class: 'gscale' }, GRADES.map(([g, min, l]) => el('span', {}, el('span', { class: 'gchip g-' + g }, g), ` ${min ? min + '점↑' : '25점 미만'} · ${l}`))))));
 }
 // 상점 화면 (번개장터 '내 상점'처럼): 색 띠 + 큰 동그라미 → 통계 줄 → 신뢰도·후기 태그 → [판매 상품 | 거래 후기] 탭
 async function renderUser(uid, tab = 'items') {
@@ -716,12 +735,12 @@ async function renderUser(uid, tab = 'items') {
   show(el('section', { class: 'panel shop' },
       el('div', { class: 'shop-cover', style: `--h:${nickHue(p.nickname)}` }),
       el('div', { class: 'shop-head' }, avatarEl(p.nickname, 'xl'),
-        el('div', { class: 'shop-name' }, el('h2', {}, p.nickname, daysSince(p.created_at) < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
+        el('div', { class: 'shop-name' }, el('h2', {}, p.nickname, gradeChip(brickGrade(s, sold.length)), daysSince(p.created_at) < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
           el('div', { class: 'small' }, [p.region || '지역 미정', `가입 ${daysSince(p.created_at) + 1}일째`].join(' · '))),
         mine ? el('a', { class: 'btn', href: '#/me/settings' }, '⚙️ 프로필 수정')
           : el('button', { type: 'button', onclick: () => shareLink(`${p.nickname}님의 상점 | 리브릭`, `${location.origin}${location.pathname}#/user/${uid}`) }, icon('share'), '공유')),
       el('div', { class: 'stats4' }, stat(selling.length, '판매 중', 'items'), stat(sold.length, '판매완료', 'sold'), stat(s.n, '거래 후기', 'reviews'), stat(s.pct == null ? '-' : `${s.pct}%`, '👍 좋았어요', 'reviews')),
-      trustMeter(s),
+      gradeCard(s, sold.length),
       s.tags.length ? el('div', { class: 'rv-tags big' }, s.tags.slice(0, 6).map(([t, n]) => el('span', {}, `${t} `, el('b', {}, n)))) : ''),
     el('section', { class: 'panel' }, tabs, body));
   draw(tab);
@@ -2014,9 +2033,10 @@ async function renderItem(id) {
         it.missing_parts != null ? el('div', { class: 'small' }, it.missing_parts ? `⚠ 누락 부품 ${it.missing_parts}개` + (it.missing_note ? ` — ${it.missing_note}` : '') : '✓ 누락 부품 없음') : ''),
       it.description ? el('div', { class: 'desc' }, it.description) : el('div', { class: 'hint' }, '설명이 없어요.'),
       el('div', { class: 'seller' }, el('div', { class: 'avatar', 'aria-hidden': 'true' }, (seller?.nickname || '?').slice(0, 1)),
-        el('div', {}, el('a', { class: 'seller-name', href: `#/user/${it.seller_id}` }, el('b', {}, seller?.nickname || '판매자'), age !== null && age < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
+        el('div', {}, el('a', { class: 'seller-name', href: `#/user/${it.seller_id}` }, el('b', {}, seller?.nickname || '판매자'), gradeChip(brickGrade(trust, sold ?? 0)), age !== null && age < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
           el('div', { class: 'small' }, [seller?.region, age !== null ? `가입 ${age + 1}일째` : '', `등록 ${listed ?? 0}개 · 판매완료 ${sold ?? 0}개`].filter(Boolean).join(' · ')),
-          el('div', { class: 'small trust' }, trustText(trust), trust.tags[0] ? ` · "${trust.tags[0][0]}"` : '', ' ', el('a', { href: `#/user/${it.seller_id}` }, '후기 보기 →')))),
+          el('div', { class: 'small trust' }, `매너 등급 ${brickGrade(trust, sold ?? 0).g} (${brickGrade(trust, sold ?? 0).label}) · `, trustText(trust), trust.tags[0] ? ` · "${trust.tags[0][0]}"` : '', ' ',
+            el('a', { href: `#/user/${it.seller_id}` }, '프로필·후기 보기 →')))),
       actions, st,
       el('div', { class: 'hint' }, '안전 거래: 가능하면 직접 만나 실물과 구성품을 확인한 뒤 결제하세요. ',
         el('a', { href: '#/guide/direct' }, '직거래 가이드'), ' · ', el('a', { href: '#/guide/delivery' }, '택배거래 가이드'), ' · ', el('a', { href: '#/safety' }, '사기 예방')))));
@@ -2291,14 +2311,28 @@ async function renderForm(id, presetSet = '') {
   if (!it) (presetSet ? fPrice : setWrap.hidden ? fName : fSet).focus();
 }
 
+// ---- 비밀번호 규칙 (2026-10-30): 8자 이상 + 영문·숫자·특수기호 각각 1개 이상 ----------------
+// Supabase 서버 설정은 '8자 이상 + 영문·숫자'까지만 고를 수 있어서, 특수기호는 여기서 확인
+const PW_RULES = [['8자 이상', p => p.length >= 8], ['영문', p => /[A-Za-z]/.test(p)], ['숫자', p => /\d/.test(p)], ['특수기호', p => /[^A-Za-z0-9\s]/.test(p)]];
+const pwMsg = p => { const miss = PW_RULES.filter(([, f]) => !f(p)).map(([t]) => t); return miss.length ? `비밀번호 조건이 부족해요: ${miss.join(' · ')} (8자 이상, 영문·숫자·특수기호 모두 넣어 주세요)` : ''; };
+// 입력하는 동안 조건 4개에 ✓
+function pwChecklist(input) {
+  const box = el('div', { class: 'pwrules', 'aria-live': 'polite' });
+  const paint = () => box.replaceChildren(...PW_RULES.map(([t, f]) => el('span', { class: f(input.value) ? 'ok' : '' }, (f(input.value) ? '✓ ' : '○ ') + t)));
+  input.addEventListener('input', paint);
+  paint();
+  return box;
+}
+
 // ---- 로그인 (2026-10-30: 이메일+비밀번호가 기본. 가입할 때만 메일 인증번호 한 번, 비밀번호 잊으면 인증번호로) ----
 function renderLogin() {
   if (me) { location.hash = '#/'; return; }
   let mode = 'login';   // login = 이메일+비밀번호 / signup = 회원가입 / code = 메일 인증번호로 로그인
   const email = el('input', { id: 'loginEmail', type: 'email', required: true, placeholder: 'you@example.com', autocomplete: 'email' });
-  const pw = el('input', { id: 'loginPw', type: 'password', placeholder: '6자 이상', autocomplete: 'current-password' });
+  const pw = el('input', { id: 'loginPw', type: 'password', placeholder: '비밀번호', autocomplete: 'current-password' });
   const pw2 = el('input', { id: 'loginPw2', type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
-  const pwWrap = el('label', { class: 'f' }, '비밀번호', pw), pw2Wrap = el('label', { class: 'f' }, '비밀번호 확인', pw2);
+  const pwRules = pwChecklist(pw);
+  const pwWrap = el('label', { class: 'f' }, '비밀번호', pw), pw2Wrap = el('label', { class: 'f' }, '비밀번호 확인', pw2, pwRules);
   const st = status();
   const btn = el('button', { type: 'submit', class: 'primary' }, '로그인');
   const intro = el('p', {});
@@ -2376,6 +2410,7 @@ function renderLogin() {
     pwWrap.hidden = k === 'code'; pw2Wrap.hidden = k !== 'signup';
     pw.required = k !== 'code'; pw2.required = k === 'signup';
     pw.autocomplete = k === 'signup' ? 'new-password' : 'current-password';
+    pw.placeholder = k === 'signup' ? '8자 이상 · 영문·숫자·특수기호 포함' : '비밀번호';
     forgot.hidden = k !== 'login'; tips.hidden = k !== 'code'; codeBox.hidden = true;
     btn.disabled = false; st.className = 'status'; st.textContent = '';
     btn.textContent = { login: '로그인', signup: '가입하기', code: CFG.otpCode ? '인증 메일 받기' : '로그인 링크 받기' }[k];
@@ -2397,7 +2432,7 @@ function renderLogin() {
       toast('로그인했어요. 반가워요!'); location.hash = '#/'; return;
     }
     if (mode === 'signup') {
-      if (pw.value.length < 6) return fail('비밀번호는 6자 이상으로 정해 주세요.');
+      if (pwMsg(pw.value)) return fail(pwMsg(pw.value));
       if (pw.value !== pw2.value) return fail('비밀번호 두 개가 서로 달라요.');
       btn.disabled = true; st.className = 'status'; st.textContent = '가입하는 중…';
       const { data, error } = await sb.auth.signUp({ email: addr, password: pw.value, options: { emailRedirectTo: location.origin + location.pathname } });
@@ -2468,7 +2503,7 @@ async function renderMe() {
         el('div', { class: 'shop-name' }, el('h2', {}, nick || '닉네임 없음'), el('div', { class: 'small' }, [prof?.region || '지역 미정', `가입 ${daysSince(prof?.created_at || Date.now()) + 1}일째`].join(' · '))),
         el('span', { class: 'small more-link' }, '내 상점 ›')),
       isDefaultNick(nick) ? el('a', { class: 'nickbanner', href: '#/nickname', style: 'margin:0' }, el('span', {}, '👋 임시 닉네임이에요. 나만의 닉네임을 정해 주세요'), el('b', {}, '정하기 →')) : '',
-      trustMeter(trust),
+      gradeCard(trust, sold.length),
       el('div', { class: 'stats4' }, stat(selling.length, '판매 중', () => draw('selling')), stat(sold.length, '판매완료', () => draw('sold')),
         stat(likedItems.length, '찜', () => draw('liked')), stat(saved.size, '즐겨찾기', () => { location.hash = '#/alerts/star'; }))),
     // 2) 내 상품·찜
@@ -2506,14 +2541,14 @@ async function renderSettings() {
     const { error } = await sb.from('profiles').update({ region: region.value.trim() }).eq('id', me.id);
     st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
   };
-  const np = el('input', { type: 'password', minlength: 6, placeholder: '6자 이상', autocomplete: 'new-password' });
+  const np = el('input', { type: 'password', minlength: 8, placeholder: '8자 이상 · 영문·숫자·특수기호 포함', autocomplete: 'new-password' });
   const np2 = el('input', { type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
   const pst = status();
-  const pwForm = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '새 비밀번호', np), el('label', { class: 'f' }, '새 비밀번호 확인', np2),
+  const pwForm = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '새 비밀번호', np, pwChecklist(np)), el('label', { class: 'f' }, '새 비밀번호 확인', np2),
     el('div', { class: 'bar' }, el('button', { type: 'submit' }, '비밀번호 바꾸기'), pst));
   pwForm.onsubmit = async e => {
     e.preventDefault();
-    const bad = np.value.length < 6 ? '비밀번호는 6자 이상으로 정해 주세요.' : np.value !== np2.value ? '비밀번호 두 개가 서로 달라요.' : '';
+    const bad = pwMsg(np.value) || (np.value !== np2.value ? '비밀번호 두 개가 서로 달라요.' : '');
     if (bad) { pst.className = 'status err'; pst.textContent = bad; return; }
     pst.className = 'status'; pst.textContent = '저장하는 중…';
     const { error } = await sb.auth.updateUser({ password: np.value });
