@@ -845,8 +845,10 @@ a.seg-b { text-align: center; text-decoration: none; }
 /* 상점: 위 색 띠 + 동그라미가 띠에 걸침 */
 .panel.shop { padding-top: 0; overflow: hidden; }
 .shop-cover { height: 92px; margin: 0 -22px; background: linear-gradient(120deg, hsl(var(--h) 80% 62%), var(--brand)); }
-.shop-head { display: flex; align-items: flex-end; gap: 14px; margin-top: -42px; flex-wrap: wrap; }
-.shop-head .shop-name { flex: 1; padding-bottom: 4px; }
+/* 동그라미만 띠에 걸치고, 이름은 띠 아래 흰 바탕에 (글자가 색 띠 위에 올라가지 않게) */
+.shop-head { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.shop-head .avatar.xl { margin-top: -40px; }
+.shop-head .shop-name { flex: 1; padding-top: 10px; }
 .shop-head > .btn, .shop-head > button { margin-bottom: 4px; }
 /* 숫자 4칸 (누르면 그 탭으로) */
 .stats4 { display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 14px; background: var(--surface-2); overflow: hidden; }
