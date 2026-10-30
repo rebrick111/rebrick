@@ -249,14 +249,13 @@ function renderNav() {
   renderTabbar();
 }
 // ---- 휴대폰 아래 탭 바 (당근·번개처럼) ----------------------------------------
-// 홈 · 시세 · [＋ 판매] · 채팅 · 내 정보 — 가운데 판매 버튼만 브랜드색으로 크게 (번개장터식). PC(720px 넘음)에선 숨김
-const TABS = [['#/', 'home', '홈'], ['#/prices', 'chart', '시세'], ['#/sell', 'plus', '판매'], ['#/chats', 'chat', '채팅'], ['#/me', 'user', '내 정보']];
+// 홈 · 시세 · 테마 · 채팅 · 내 정보. 판매는 오른쪽 아래 떠 있는 둥근 버튼(#sellFab, 당근식). PC(720px 넘음)에선 둘 다 숨김
+const TABS = [['#/', 'home', '홈'], ['#/prices', 'chart', '시세'], ['#/themes', 'grid', '테마'], ['#/chats', 'chat', '채팅'], ['#/me', 'user', '내 정보']];
 function renderTabbar() {
   const bar = document.getElementById('tabbar');
   if (!bar) return;
-  bar.replaceChildren(...TABS.map(([href, ic, label]) => href === '#/sell'
-    ? el('a', { class: 'tab sell', href, 'aria-label': '내 세트 판매하기' }, el('span', { class: 'fab' }, icon(ic)), el('span', {}, label))
-    : el('a', { class: 'tab', href: href === '#/me' && !me ? '#/login' : href }, icon(ic), el('span', {}, href === '#/me' && !me ? '로그인' : label))));
+  bar.replaceChildren(...TABS.map(([href, ic, label]) =>
+    el('a', { class: 'tab', href: href === '#/me' && !me ? '#/login' : href }, icon(ic), el('span', {}, href === '#/me' && !me ? '로그인' : label))));
   bar.querySelectorAll('a[href="#/"]').forEach(a => a.addEventListener('click', goHome));
   markTabbar();
   paintUnread();
@@ -350,7 +349,7 @@ async function fillLikeCounts(ids) {
 function markTabbar() {
   const h = location.hash || '#/', page = h.replace(/^#\/?/, '').split('/')[0];
   // 탭과 같은 묶음의 화면이면 그 탭을 표시 (세트 시세 화면은 '시세', 채팅방은 '채팅')
-  const which = { '': '#/', item: '#/', prices: '#/prices', set: '#/prices', compare: '#/prices', sell: '#/sell', edit: '#/sell',
+  const which = { '': '#/', item: '#/', prices: '#/prices', set: '#/prices', compare: '#/prices', themes: '#/themes', theme: '#/themes',
     chats: '#/chats', chat: '#/chats', me: '#/me', login: '#/me', collection: '#/me' }[page];
   document.querySelectorAll('#tabbar a').forEach(a => {
     const on = which && (a.getAttribute('href') === which || (which === '#/me' && a.getAttribute('href') === '#/login'));
@@ -358,7 +357,17 @@ function markTabbar() {
   });
   // 채팅방 안에서는 입력칸을 가리지 않게 탭 바를 숨김 (당근·번개도 같음)
   document.body.classList.toggle('no-tabbar', page === 'chat');
+  // 판매 버튼은 글 쓰는 중·채팅·상품 화면(사기·채팅 버튼이 아래에 있음)에선 숨김
+  document.body.classList.toggle('no-fab', ['sell', 'edit', 'chat', 'item', 'login', 'report'].includes(page));
 }
+// 오른쪽 아래 "＋ 판매하기": 아래로 내리면 동그라미로 작아지고, 올리면 다시 글자 (당근 '글쓰기' 버튼처럼)
+(() => {
+  let lastY = scrollY;
+  addEventListener('scroll', () => {
+    const fab = document.getElementById('sellFab'), y = scrollY;
+    if (fab && Math.abs(y - lastY) > 6) { fab.classList.toggle('mini', y > lastY && y > 80); lastY = y; }
+  }, { passive: true });
+})();
 // 화이트 / 다크 모드: 기본 화이트, 고른 것은 이 브라우저에 기억
 function setTheme(dark, save = true) {
   if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;

@@ -597,7 +597,7 @@ label.f.wide { grid-column: 1 / -1; }
 }
 
 /* 휴대폰 아래 탭 바 — 당근(5탭·글자+선 아이콘)·번개(가운데 등록 버튼 강조)를 섞음. 반투명 흰 바탕 + 흐림, 지금 탭만 진하게 */
-.tabbar { display: none; }
+.tabbar, .sellfab { display: none; }
 @media (max-width: 720px) {
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
             padding: 6px max(6px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-right, 0px));
@@ -611,13 +611,21 @@ label.f.wide { grid-column: 1 / -1; }
   .tabbar .tab[aria-current] { color: var(--fg); font-weight: 800; }
   .tabbar .tab[aria-current] svg path { stroke-width: 2.4; }
   .tabbar .tab:active svg { transform: scale(.88); }
-  /* 가운데 판매 버튼: 브랜드 파랑 둥근 사각 + 살짝 떠 있음 */
-  .tabbar .tab.sell { color: var(--fg); }
-  .tabbar .fab { display: grid; place-items: center; width: 46px; height: 46px; margin-top: -20px; border-radius: 16px;
-                 background: var(--brand); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--brand) 45%, transparent), 0 0 0 4px var(--bg); }
-  .tabbar .fab svg { width: 24px; height: 24px; }
-  .tabbar .fab svg path { stroke-width: 2.6; }
-  .tabbar .tab.sell:active .fab { transform: scale(.94); }
+  /* 오른쪽 아래 떠 있는 판매 버튼 (당근 '글쓰기'처럼): 파란 알약 → 스크롤 내리면 동그라미 */
+  .sellfab { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 31;
+             display: flex; align-items: center; gap: 6px; height: 54px; padding: 0 20px 0 15px; border-radius: 99px;
+             background: var(--brand); color: #fff; font-size: 16px; font-weight: 800; letter-spacing: -.03em; text-decoration: none;
+             box-shadow: 0 8px 22px color-mix(in srgb, var(--brand) 42%, transparent), 0 2px 6px rgba(0,0,0,.12);
+             transition: padding .2s, transform .15s; -webkit-tap-highlight-color: transparent; }
+  .sellfab svg { width: 24px; height: 24px; flex: none; }
+  .sellfab svg path { stroke-width: 2.8; }
+  .sellfab .t { max-width: 80px; overflow: hidden; white-space: nowrap; transition: max-width .2s, opacity .2s; }
+  .sellfab.mini { padding: 0 15px; gap: 0; }
+  .sellfab.mini .t { max-width: 0; opacity: 0; }
+  .sellfab:active { transform: scale(.94); }
+  body.no-fab .sellfab, body.no-tabbar .sellfab { display: none; }
+  .toast { z-index: 32; }
+  body:not(.no-fab):not(.no-tabbar) .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   /* 탭 바에 가리지 않게 아래 여백, 알림은 탭 바 위로 */
   body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
