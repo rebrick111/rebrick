@@ -315,6 +315,27 @@ main .inner { display: grid; gap: 28px; }
 .stat b { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
 
 /* 테마 타일 */
+/* 테마 동그라미 (홈 '테마로 찾기'): PC는 여러 줄에 전부, 휴대폰은 2줄 가로 밀기 */
+.trail { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 16px 8px; }
+.tcirc { display: grid; justify-items: center; gap: 7px; min-width: 0; color: var(--fg); text-decoration: none; }
+.tc-pic { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+          background: color-mix(in srgb, var(--c) 13%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 16%, transparent); transition: transform .15s, box-shadow .15s; }
+.tc-pic img { width: 80%; height: 80%; object-fit: contain; mix-blend-mode: multiply; }
+.tcirc b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 700; letter-spacing: -.02em; }
+.tcirc:hover .tc-pic { transform: translateY(-2px); box-shadow: inset 0 0 0 2px var(--c); }
+@media (max-width: 720px) {
+  .trail { grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-template-columns: none; grid-auto-columns: 68px; gap: 14px 10px;
+           overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; margin-inline: -16px; padding-inline: 16px; }
+  .trail::-webkit-scrollbar { display: none; }
+  .tcirc { scroll-snap-align: start; }
+  .tc-pic { width: 60px; height: 60px; }
+  .tcirc b { font-size: 12px; }
+}
+/* 전체 테마 화면: 검색칸 + 묶음 제목 */
+.tsearch { max-width: 420px; border-radius: 99px; padding-inline: 18px; }
+.tgroups { display: grid; gap: 26px; }
+.tg-h { margin: 0 0 10px; font-size: 17px; display: flex; align-items: baseline; gap: 6px; }
+.tg-h span { font-size: 13px; color: var(--faint); font-weight: 600; }
 .ttiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .ttile { position: relative; overflow: hidden; display: grid; align-content: end; gap: 2px; min-height: 96px; padding: 14px; border-radius: 16px; color: #fff; text-decoration: none;
          background: linear-gradient(140deg, color-mix(in srgb, var(--c) 70%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000) 100%); }

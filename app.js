@@ -960,6 +960,7 @@ async function renderList() {
   const q0 = filters.q.trim();
   // 리브릭의 주인공은 중고거래 → 첫 화면은 얇은 배너 바로 아래 매물, 바로가기·소식·시세는 그 아래
   show(home ? renderHero('banner') : '',
+    home ? themeRail() : '',
     el('section', { class: 'section' },
       el('div', { class: 'sec-head' }, el('h2', {}, q0 ? `'${q0}' 검색 결과` : home ? '방금 올라온 세트' : '상품'), summary,
         // 검색어가 있으면 ⭐ 한 번으로 그 검색어 새 상품 알림
@@ -979,9 +980,6 @@ async function renderList() {
               el('span', { class: 'ytxt' }, el('b', {}, c.name), el('span', { class: 'small' }, c.note)))))));
     })() : '',
     home ? renderRails() : '',
-    home ? (() => { const { n } = themeCounts(); return el('section', { class: 'section' },
-      el('div', { class: 'sec-head' }, el('div', {}, el('h2', {}, '테마별로 둘러보기'), el('p', {}, '명작 시세 · 한정판 · 곧 단종을 테마별로')), el('a', { class: 'more', href: '#/themes' }, '전체 테마 →')),
-      el('div', { class: 'ttiles' }, ['스타워즈', '해리포터', '마블', '올드 레고', '아이콘즈', '테크닉', '닌자고', '미니피규어'].map(t => themeTile(t, n[t])))); })() : '',
     home ? renderPriceGuide() : '');
 
   let qy = sb.from('listings').select('*').limit(120);
@@ -1437,11 +1435,43 @@ const themeTile = (t, n) => {
   return el('a', { class: 'ttile' + (img ? ' pic' : ''), href: `#/theme/${encodeURIComponent(t)}`, style: `--c:${THEMES[t]}` },
     img, el('b', {}, t), el('span', {}, n ? `${n.toLocaleString('ko-KR')}개` : ''));
 };
+// (2026-10-30, 사용자 "테마가 많은데 8개만, 맨 아래라 불편") 테마 22개를 묶음으로 — 홈 위쪽 동그라미 줄과 전체 테마 화면이 같은 순서
+const THEME_GROUPS = [
+  ['인기 라이선스', ['스타워즈', '해리포터', '마블', 'DC', '디즈니', '쥬라기 월드', '마인크래프트', '슈퍼 마리오', '포켓몬', '스피드 챔피언']],
+  ['어른을 위한 레고', ['아이콘즈', '테크닉', '아이디어', '아키텍처', '보태니컬']],
+  ['레고 오리지널', ['시티', '닌자고', '프렌즈', '크리에이터', '듀플로']],
+  ['수집·클래식', ['미니피규어', '올드 레고']]];
+// 테마 동그라미: 테마색을 옅게 깐 원 안에 대표 세트 사진 (번개·쿠팡 카테고리 아이콘처럼)
+function themeCircle(t) {
+  const p = THEME_PIC[t], no = Array.isArray(p) ? p[1] : p;
+  const im = no ? pic(no, { alt: '' }, () => im.remove()) : '';
+  return el('a', { class: 'tcirc', href: `#/theme/${encodeURIComponent(t)}`, style: `--c:${THEMES[t]}` }, el('span', { class: 'tc-pic' }, im), el('b', {}, t));
+}
+// 홈: 배너 바로 아래 '테마로 찾기' (PC 2줄에 전부, 휴대폰은 2줄 가로 밀기)
+function themeRail() {
+  const all = THEME_GROUPS.flatMap(([, ts]) => ts);
+  return el('section', { class: 'section' },
+    el('div', { class: 'sec-head' }, el('h2', {}, '테마로 찾기'), el('span', { class: 'summary' }, `${all.length}개 테마`), el('a', { class: 'more', href: '#/themes' }, '전체 테마 →')),
+    el('nav', { class: 'trail', 'aria-label': '테마' }, all.map(themeCircle)));
+}
+// 전체 테마 화면: 검색 + 묶음별 큰 타일
 function renderThemes() {
   const { n } = themeCounts();
+  const q = el('input', { type: 'search', class: 'tsearch', placeholder: '테마 이름으로 찾기 (예: 스타워즈, 테크닉)', 'aria-label': '테마 찾기' });
+  const body = el('div', { class: 'tgroups' });
+  const draw = () => {
+    const k = q.value.trim().toLowerCase();
+    const parts = THEME_GROUPS.map(([g, ts]) => {
+      const list = ts.filter(t => !k || t.toLowerCase().includes(k));
+      return list.length ? el('section', { class: 'section' }, el('h3', { class: 'tg-h' }, g, el('span', {}, `${list.length}`)), el('div', { class: 'ttiles' }, list.map(t => themeTile(t, n[t])))) : null;
+    }).filter(Boolean);
+    body.replaceChildren(...(parts.length ? parts : [el('div', { class: 'empty' }, `'${q.value.trim()}' 테마가 없어요. 세트 이름은 위쪽 검색칸에서 찾아 주세요.`)]));
+  };
+  q.oninput = draw;
   show(el('section', { class: 'section' },
     el('div', { class: 'sec-head' }, el('div', {}, el('h2', {}, '테마별로 둘러보기'), el('p', {}, '테마를 고르면 명작 세트 시세, 곧 단종, 신제품, 올라온 매물을 한 번에 볼 수 있어요.'))),
-    el('div', { class: 'ttiles' }, Object.keys(THEMES).filter(t => t !== '기타').map(t => themeTile(t, n[t])))));
+    q), body);
+  draw();
 }
 function iconCard(x) {
   const c = CATALOG[x.no] || {};
