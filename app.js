@@ -391,7 +391,8 @@ async function fillLikeCounts(ids) {
 const NICK_RE = /^[가-힣A-Za-z0-9_]{2,12}$/;
 const isDefaultNick = n => n === '브릭러' || /^브릭러[0-9a-f]{6,8}$/.test(n || '');
 let myNick = '', needNick = false;
-async function loadMyNick(justLoggedIn = false) {
+// 처음 열 때는 화면을 그리기 전에 기다림 (판매·채팅 화면이 먼저 그려져 닉네임 화면을 덮지 않게)
+async function loadMyNick() {
   myNick = ''; needNick = false;
   if (sb && me) {
     const { data } = await sb.from('profiles').select('nickname').eq('id', me.id).maybeSingle();
@@ -399,9 +400,6 @@ async function loadMyNick(justLoggedIn = false) {
     needNick = isDefaultNick(myNick);
   }
   paintNickBanner();
-  // 방금 로그인했거나, 닉네임 없이 판매·채팅 화면에 와 있으면 정하는 화면으로
-  const page = (location.hash || '#/').replace(/^#\/?/, '').split('/')[0];
-  if (needNick && (justLoggedIn || NICK_PAGES.includes(page))) route();
 }
 const NICK_PAGES = ['sell', 'edit', 'chat'];
 function paintNickBanner() {
@@ -759,7 +757,7 @@ function markTabbar() {
   // 채팅방 안에서는 입력칸을 가리지 않게 탭 바를 숨김 (당근·번개도 같음)
   document.body.classList.toggle('no-tabbar', page === 'chat');
   // 판매 버튼은 글 쓰는 중·채팅·상품 화면(사기·채팅 버튼이 아래에 있음)에선 숨김
-  document.body.classList.toggle('no-fab', ['sell', 'edit', 'chat', 'item', 'login', 'report'].includes(page));
+  document.body.classList.toggle('no-fab', ['sell', 'edit', 'chat', 'item', 'login', 'report', 'nickname'].includes(page));
 }
 // 오른쪽 아래 "＋ 판매하기": 아래로 내리면 동그라미로 작아지고, 올리면 다시 글자 (당근 '글쓰기' 버튼처럼)
 (() => {
@@ -2727,6 +2725,7 @@ async function renderReport(listingId) {
     });
   }
   renderNav();
+  await loadMyNick();
   route();
-  checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved(); loadMyNick();
+  checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
 })();
