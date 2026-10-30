@@ -1802,17 +1802,24 @@ async function renderForm(id, presetSet = '') {
   if (!it) (presetSet ? fPrice : setWrap.hidden ? fName : fSet).focus();
 }
 
-// ---- 로그인 (이메일로 받은 링크를 누르면 로그인) ------------------------------
+// ---- 로그인 (2026-10-30: 이메일+비밀번호가 기본. 가입할 때만 메일 인증번호 한 번, 비밀번호 잊으면 인증번호로) ----
 function renderLogin() {
   if (me) { location.hash = '#/'; return; }
+  let mode = 'login';   // login = 이메일+비밀번호 / signup = 회원가입 / code = 메일 인증번호로 로그인
   const email = el('input', { id: 'loginEmail', type: 'email', required: true, placeholder: 'you@example.com', autocomplete: 'email' });
+  const pw = el('input', { id: 'loginPw', type: 'password', placeholder: '6자 이상', autocomplete: 'current-password' });
+  const pw2 = el('input', { id: 'loginPw2', type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
+  const pwWrap = el('label', { class: 'f' }, '비밀번호', pw), pw2Wrap = el('label', { class: 'f' }, '비밀번호 확인', pw2);
   const st = status();
-  const btn = el('button', { type: 'submit', class: 'primary' }, CFG.otpCode ? '인증 메일 받기' : '로그인 링크 받기');
+  const btn = el('button', { type: 'submit', class: 'primary' }, '로그인');
+  const intro = el('p', {});
+  const segs = [['login', '로그인'], ['signup', '회원가입'], ['code', '인증번호로']].map(([k, t]) =>
+    el('button', { type: 'button', class: 'seg-b', 'data-k': k, onclick: () => setMode(k) }, t));
+  const forgot = el('button', { type: 'button', class: 'linkbtn', onclick: () => setMode('code') }, '비밀번호를 잊었거나 아직 안 정했어요 →');
   const form = el('form', { class: 'panel login' },
     el('h2', {}, '로그인 / 가입'),
-    el('p', {}, CFG.otpCode ? '이메일로 인증번호를 보내 드려요. 처음이면 자동으로 가입돼요. 비밀번호는 필요 없어요.'
-      : '이메일을 넣으면 로그인 링크를 보내 드려요. 처음이면 자동으로 가입돼요. 비밀번호는 필요 없어요.'),
-    el('label', { class: 'f' }, '이메일', email), el('div', { class: 'bar' }, btn), st,
+    el('div', { class: 'seg', role: 'group', 'aria-label': '로그인 방법' }, segs), intro,
+    el('label', { class: 'f' }, '이메일 (아이디)', email), pwWrap, pw2Wrap, el('div', { class: 'bar' }, btn), st, forgot,
     el('ul', { class: 'tips small' },
       el('li', {}, '메일이 안 보이면 스팸함도 확인해 주세요.'),
       el('li', {}, CFG.otpCode ? '링크는 누른 기기에서만 로그인돼요. 컴퓨터로 로그인하려는데 메일을 휴대폰에서 봤다면 인증번호를 넣으세요.'
@@ -1821,7 +1828,8 @@ function renderLogin() {
   // 메일은 시간당 보낼 수 있는 수가 적어서, 보낸 뒤 60초 동안 다시 못 누르게 함
   const cooldown = sec => {
     btn.disabled = true;
-    const tick = () => { if (sec <= 0) { btn.disabled = false; btn.textContent = '메일 다시 받기'; return; } btn.textContent = `다시 받기 (${sec--}초)`; setTimeout(tick, 1000); };
+    const m = mode;
+    const tick = () => { if (mode !== m) return; if (sec <= 0) { btn.disabled = false; btn.textContent = '메일 다시 받기'; return; } btn.textContent = `다시 받기 (${sec--}초)`; setTimeout(tick, 1000); };
     tick();
   };
   // 인증번호 입력: 메일은 휴대폰으로 보고 로그인은 컴퓨터에서 할 때 (링크는 누른 기기에서만 로그인됨)
@@ -1870,16 +1878,55 @@ function renderLogin() {
     location.hash = '#/';
   };
   codeBtn.onclick = verify;
-  form.insertBefore(codeBox, form.querySelector('.tips'));
+  const tips = form.querySelector('.tips');
+  form.insertBefore(codeBox, tips);
+  const showCode = () => { sentTo.textContent = `📬 ${email.value.trim()}(으)로 보냈어요`; codeBox.hidden = false; digits.forEach(d => { d.value = ''; }); codeSt.textContent = ''; code.focus(); };
+  function setMode(k) {
+    mode = k;
+    segs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
+    pwWrap.hidden = k === 'code'; pw2Wrap.hidden = k !== 'signup';
+    pw.required = k !== 'code'; pw2.required = k === 'signup';
+    pw.autocomplete = k === 'signup' ? 'new-password' : 'current-password';
+    forgot.hidden = k !== 'login'; tips.hidden = k !== 'code'; codeBox.hidden = true;
+    btn.disabled = false; st.className = 'status'; st.textContent = '';
+    btn.textContent = { login: '로그인', signup: '가입하기', code: CFG.otpCode ? '인증 메일 받기' : '로그인 링크 받기' }[k];
+    intro.textContent = {
+      login: '가입할 때 정한 이메일과 비밀번호로 로그인해요. 한 번 로그인하면 이 기기에서는 계속 로그인돼 있어요.',
+      signup: '이메일과 비밀번호만 정하면 돼요. 진짜 내 메일인지 확인하려고 처음 한 번만 인증번호를 보내 드려요.',
+      code: '비밀번호를 잊었거나 아직 안 정했다면 메일 인증번호로 로그인한 뒤, 내 정보에서 비밀번호를 정해 주세요.',
+    }[k];
+  }
   form.onsubmit = async e => {
     e.preventDefault();
+    const addr = email.value.trim();
+    const fail = msg => { st.className = 'status err'; st.textContent = msg; btn.disabled = false; };
+    if (mode === 'login') {
+      btn.disabled = true; st.className = 'status'; st.textContent = '확인하는 중…';
+      const { error } = await sb.auth.signInWithPassword({ email: addr, password: pw.value });
+      if (error) return fail(/invalid login/i.test(error.message) ? '이메일이나 비밀번호가 틀렸어요. 예전에 인증번호로만 로그인했다면 아직 비밀번호가 없어요 — 아래 "비밀번호를 잊었거나…"를 눌러 주세요.'
+        : /not confirmed/i.test(error.message) ? '아직 메일 인증을 안 했어요. 회원가입 탭에서 같은 메일로 다시 가입하면 인증번호를 새로 보내 드려요.' : errMsg(error));
+      toast('로그인했어요. 반가워요!'); location.hash = '#/'; return;
+    }
+    if (mode === 'signup') {
+      if (pw.value.length < 6) return fail('비밀번호는 6자 이상으로 정해 주세요.');
+      if (pw.value !== pw2.value) return fail('비밀번호 두 개가 서로 달라요.');
+      btn.disabled = true; st.className = 'status'; st.textContent = '가입하는 중…';
+      const { data, error } = await sb.auth.signUp({ email: addr, password: pw.value, options: { emailRedirectTo: location.origin + location.pathname } });
+      if (error) return fail(/already/i.test(error.message) ? '이미 가입한 메일이에요. 로그인 탭에서 로그인해 주세요.' : /password/i.test(error.message) ? '비밀번호가 너무 쉬워요. 더 길게 정해 주세요.' : errMsg(error));
+      // 이미 가입된 메일이면 Supabase가 identities 빈 사용자를 돌려줌 (메일은 안 감)
+      if (data.user && !(data.user.identities || []).length) return fail('이미 가입한 메일이에요. 로그인 탭에서 로그인하거나, 비밀번호를 모르면 "인증번호로"를 눌러 주세요.');
+      if (data.session) { toast('가입했어요. 반가워요!'); location.hash = '#/'; return; }   // 메일 확인을 끈 경우
+      st.textContent = '가입 확인 메일을 보냈어요. 메일 속 인증번호를 아래에 넣으면 가입이 끝나요.';
+      showCode(); cooldown(60); return;
+    }
     btn.disabled = true; st.className = 'status'; st.textContent = '보내는 중…';
-    const { error } = await sb.auth.signInWithOtp({ email: email.value.trim(), options: { emailRedirectTo: location.origin + location.pathname } });
-    if (error) { st.className = 'status err'; st.textContent = errMsg(error); btn.disabled = false; return; }
-    st.textContent = CFG.otpCode ? '' : `📬 ${email.value.trim()} 메일함을 확인해 주세요. 메일 속 링크는 누른 기기에서 로그인돼요 — 이 기기에서 메일을 열어 링크를 눌러 주세요.`;
-    if (CFG.otpCode) { sentTo.textContent = `📬 ${email.value.trim()}(으)로 보냈어요`; codeBox.hidden = false; digits.forEach(d => { d.value = ''; }); codeSt.textContent = ''; code.focus(); }
+    const { error } = await sb.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) return fail(errMsg(error));
+    st.textContent = CFG.otpCode ? '' : `📬 ${addr} 메일함을 확인해 주세요. 메일 속 링크는 누른 기기에서 로그인돼요 — 이 기기에서 메일을 열어 링크를 눌러 주세요.`;
+    if (CFG.otpCode) showCode();
     cooldown(60);
   };
+  setMode('login');
   show(form);
 }
 
@@ -1903,6 +1950,24 @@ async function renderMe() {
     const { error } = await sb.from('profiles').update({ nickname: nick.value.trim() || '브릭러', region: region.value.trim() }).eq('id', me.id);
     st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
   };
+  // 비밀번호 정하기·바꾸기 (예전에 인증번호로만 가입한 사람도 여기서 정하면 다음부터 이메일+비밀번호로 로그인)
+  const np = el('input', { type: 'password', minlength: 6, placeholder: '6자 이상', autocomplete: 'new-password' });
+  const np2 = el('input', { type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
+  const pst = status();
+  const pwForm = el('form', { class: 'fields pwform' }, el('label', { class: 'f' }, '새 비밀번호', np), el('label', { class: 'f' }, '비밀번호 확인', np2),
+    el('div', { class: 'bar' }, el('button', { type: 'submit' }, '비밀번호 정하기'), pst));
+  pwForm.onsubmit = async e => {
+    e.preventDefault();
+    const bad = np.value.length < 6 ? '비밀번호는 6자 이상으로 정해 주세요.' : np.value !== np2.value ? '비밀번호 두 개가 서로 달라요.' : '';
+    if (bad) { pst.className = 'status err'; pst.textContent = bad; return; }
+    pst.className = 'status'; pst.textContent = '저장하는 중…';
+    const { error } = await sb.auth.updateUser({ password: np.value });
+    pst.className = 'status' + (error ? ' err' : '');
+    pst.textContent = error ? (/different from the old/i.test(error.message) ? '지금 비밀번호와 같아요.' : /password/i.test(error.message) ? '비밀번호가 너무 쉬워요. 더 길게 정해 주세요.' : errMsg(error))
+      : '비밀번호를 정했어요. 다음부터 이메일과 이 비밀번호로 로그인하면 돼요.';
+    if (!error) { np.value = ''; np2.value = ''; }
+  };
+  const pwPanel = el('section', { class: 'panel' }, el('h2', {}, '비밀번호'), el('p', { class: 'small' }, `로그인 아이디는 이메일(${me.email})이에요.`), pwForm);
   // 찜한 상품 (likes 표가 아직 없으면 조용히 빈 목록)
   const { data: liked } = await sb.from('likes').select('created_at, listings(*)').order('created_at', { ascending: false });
   const likedItems = (liked || []).map(r => r.listings).filter(Boolean);
@@ -1913,7 +1978,7 @@ async function renderMe() {
       : el('div', { class: 'empty' }, '아직 올린 상품이 없어요.', el('a', { class: 'btn primary', href: '#/sell' }, '+ 판매 등록하기'))),
     el('section', { class: 'panel', id: 'liked' }, el('h2', {}, `♥ 찜한 상품 ${likedItems.length}개`),
       likedItems.length ? el('div', { class: 'grid' }, likedItems.map(listingCard))
-        : el('div', { class: 'empty' }, '마음에 드는 상품 사진의 ♡를 누르면 여기 모여요.')));
+        : el('div', { class: 'empty' }, '마음에 드는 상품 사진의 ♡를 누르면 여기 모여요.')), pwPanel);
   fillLikeCounts(likedItems.map(it => it.id));
 }
 
