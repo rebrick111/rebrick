@@ -679,29 +679,38 @@ async function reviewBox(l, targetId, targetNick) {
 const nickHue = n => [...String(n || '?')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
 const avatarEl = (nick, size = '') => el('div', { class: 'avatar ' + size, style: `--h:${nickHue(nick)}`, 'aria-hidden': 'true' }, String(nick || '?').slice(0, 1));
 // ---- 매너 등급 SS~F (2026-10-30, 당근 '온도' 대신 등급) --------------------------------
-// 모두 50점(B)에서 시작 · 거래 후기 😍최고예요 +4 / 🙂좋아요 +2 / 😕별로예요 −6 · 판매완료 1건 +1 (최대 +10) · 0~100점
-// SS 90↑ · S 80↑ · A 70↑ · B 50↑ · C 40↑ · D 25↑ · F 25 미만 → 첫 후기 '별로예요' 한 번이면 C, 최고예요 5번이면 A
-const GRADES = [['SS', 90, '최고의 매너'], ['S', 80, '아주 믿을 만해요'], ['A', 70, '믿을 만해요'], ['B', 50, '보통'], ['C', 40, '조금 주의'], ['D', 25, '주의가 필요해요'], ['F', 0, '거래 주의']];
+// (2026-10-30 2차, 사용자 "너무 쉽게 올라가지 않게") 모두 50점(B)에서 시작
+// 거래 후기 😍최고예요 +2 / 🙂좋아요 +1 / 😕별로예요 −5 · 판매완료 1건 +0.5 (최대 +5) · 0~100점
+// 높은 등급은 점수 + 후기 수 + 👍 비율까지 채워야 함 → 최고예요만 받아도 A까지 후기 10개, S 15개, SS는 20개 + 후기 30개·👍 95%
+// [등급, 최소 점수, 설명, 최소 후기 수, 최소 👍%]
+const GRADES = [['SS', 90, '최고의 매너', 30, 95], ['S', 80, '아주 믿을 만해요', 15, 90], ['A', 70, '믿을 만해요', 5, 80], ['B', 50, '보통', 0, 0],
+  ['C', 40, '조금 주의', 0, 0], ['D', 25, '주의가 필요해요', 0, 0], ['F', 0, '거래 주의', 0, 0]];
 function brickGrade(s, soldN = 0) {
-  const score = Math.max(0, Math.min(100, 50 + s.best * 4 + (s.good - s.best) * 2 - (s.n - s.good) * 6 + Math.min(10, soldN)));
-  const i = GRADES.findIndex(([, min]) => score >= min);
+  const raw = 50 + s.best * 2 + (s.good - s.best) - (s.n - s.good) * 5 + Math.min(5, soldN * 0.5);
+  const score = Math.round(Math.max(0, Math.min(100, raw)));
+  const pct = s.n ? s.good / s.n * 100 : 0;
+  const ok = ([, min, , minN, minPct]) => score >= min && s.n >= minN && (!minPct || pct >= minPct);
+  const i = GRADES.findIndex(ok);
   const [g, min, label] = GRADES[i], up = GRADES[i - 1];
-  return { score, g, label, min, next: up?.[0], nextMin: up?.[1], need: up ? up[1] - score : 0 };
+  // 다음 등급까지 모자란 것: 점수 · 후기 수 · 👍 비율
+  const lack = up ? [score < up[1] ? `${up[1] - score}점` : '', s.n < up[3] ? `후기 ${up[3] - s.n}개 더` : '', up[4] && pct < up[4] ? `👍 ${up[4]}% 이상` : ''].filter(Boolean) : [];
+  return { score, g, label, min, next: up?.[0], nextMin: up?.[1], lack };
 }
 const gradeChip = gr => el('span', { class: 'gchip g-' + gr.g, title: `매너 등급 ${gr.g} · ${gr.label} (${gr.score}점)` }, gr.g);
 // 프로필용 큰 등급 카드: 등급 배지 · 다음 등급까지 막대 · 계산 방법
 function gradeCard(s, soldN) {
   const gr = brickGrade(s, soldN);
-  const pct = gr.next ? Math.round((gr.score - gr.min) / (gr.nextMin - gr.min) * 100) : 100;
+  const pct = gr.next ? Math.round(Math.min(1, Math.max(0, (gr.score - gr.min) / (gr.nextMin - gr.min))) * 100) : 100;
   return el('div', { class: 'gcard' },
     el('div', { class: 'gbadge g-' + gr.g, role: 'img', 'aria-label': `매너 등급 ${gr.g}` }, el('b', {}, gr.g), el('small', {}, '등급')),
     el('div', { class: 'ginfo' },
       el('div', {}, el('b', {}, `매너 등급 ${gr.g}`), el('span', { class: 'small' }, ` · ${gr.label} · ${gr.score}점`)),
-      el('div', { class: 'gbar', role: 'img', 'aria-label': gr.next ? `${gr.next}등급까지 ${gr.need}점` : '최고 등급' }, el('i', { class: 'g-' + gr.g, style: `width:${Math.max(4, pct)}%` })),
-      el('div', { class: 'small' }, gr.next ? `${gr.next}등급까지 ${gr.need}점` : '최고 등급이에요 🏆', s.n ? ` · 후기 ${s.n}개 · 👍 ${s.pct}%` : ' · 아직 받은 후기가 없어요'),
+      el('div', { class: 'gbar', role: 'img', 'aria-label': gr.next ? `${gr.next}등급까지 ${gr.lack.join(', ')}` : '최고 등급' }, el('i', { class: 'g-' + gr.g, style: `width:${Math.max(4, pct)}%` })),
+      el('div', { class: 'small' }, gr.next ? `${gr.next}등급까지 ${gr.lack.join(' · ')}` : '최고 등급이에요 🏆', s.n ? ` · 받은 후기 ${s.n}개 · 👍 ${s.pct}%` : ' · 아직 받은 후기가 없어요'),
       el('details', { class: 'ghelp' }, el('summary', {}, '등급은 어떻게 정해지나요?'),
-        el('p', { class: 'small' }, '모두 50점(B등급)에서 시작해요. 거래가 끝난 뒤 받은 후기에 따라 😍최고예요 +4점, 🙂좋아요 +2점, 😕별로예요 −6점, 판매완료 1건마다 +1점(최대 +10점)이 더해져요.'),
-        el('div', { class: 'gscale' }, GRADES.map(([g, min, l]) => el('span', {}, el('span', { class: 'gchip g-' + g }, g), ` ${min ? min + '점↑' : '25점 미만'} · ${l}`))))));
+        el('p', { class: 'small' }, '모두 50점(B등급)에서 시작해요. 거래가 끝난 뒤 받은 후기에 따라 😍최고예요 +2점, 🙂좋아요 +1점, 😕별로예요 −5점, 판매완료 1건마다 +0.5점(최대 +5점)이 더해져요. 높은 등급은 점수뿐 아니라 받은 후기 수와 👍 비율도 채워야 해서, 오래 꾸준히 좋은 거래를 한 사람만 올라갈 수 있어요.'),
+        el('div', { class: 'gscale' }, GRADES.map(([g, min, l, n, p]) => el('span', {}, el('span', { class: 'gchip g-' + g }, g),
+          ` ${min ? min + '점↑' : '25점 미만'}${n ? ` · 후기 ${n}개↑` : ''}${p ? ` · 👍 ${p}%↑` : ''} — ${l}`))))));
 }
 // 상점 화면 (번개장터 '내 상점'처럼): 색 띠 + 큰 동그라미 → 통계 줄 → 신뢰도·후기 태그 → [판매 상품 | 거래 후기] 탭
 async function renderUser(uid, tab = 'items') {
@@ -1115,61 +1124,97 @@ const BANNER_ART = `<svg class="art" viewBox="0 0 440 300" aria-hidden="true">
       <g fill="none" stroke="#18237a" stroke-width="9" stroke-linecap="round"><path d="M51 58 A27 27 0 0 1 101 56"/><path d="M103 77 A27 27 0 0 1 53 79"/></g>
       <g fill="#18237a"><path d="M107 69 L114 50 L94 55 Z"/><path d="M47 66 L40 85 L60 80 Z"/></g></g>
   </g></svg>`;
-// part = 'banner' (얇은 배너, 매물 위) / 'extras' (바로가기·안내 띠, 매물 아래)
-// 맨 위 배너 여러 장: 리브릭 → 코믹콘 D-day → 곧 단종 세트 → 공식몰 프로모션, 5초마다 넘김 (점·화살표로도 넘김)
-function heroCarousel(first) {
-  const slides = [first];
-  if (SDCC) slides.push(sdccFigs(el('a', { class: 'banner slim dark', href: '#/limited' },
-    el('span', { class: 'eyebrow' }, '한정판의 성지, 코믹콘'),
-    el('h2', {}, `${SDCC.name}까지 `, el('em', {}, `D-${daysUntil(SDCC.from)}`)),
-    el('p', {}, `역대 코믹콘 한정판 ${LIMITED.length}개의 지금 시세를 확인해 보세요.`),
-    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '한정판 시세 보기')))));
-  const retire = Object.entries(CATALOG).filter(([, c]) => c.store?.flags.includes('retiringSoon')).sort((a, b) => b[1].msrp - a[1].msrp)[0];
+// part = 'banner' (맨 위 슬라이드, 매물 위) / 'extras' (바로가기·안내 띠, 매물 아래)
+// (2026-10-30 개편, 사용자 "배너가 초라해 보임") 쇼핑몰식 큰 배너: 색 그라데이션 + 점무늬 질감 + 공식몰 제품 사진(배경 없는 PNG)을 크게,
+// 아래 왼쪽에 '01 / 05' 번호 + 5초 진행 막대(막대가 다 차면 다음 장, 마우스·손가락 올리면 멈춤)
+// 슬라이드: 리브릭 소개(인기 세트 3개 콜라주) → 곧 단종 → 신제품 → 코믹콘 D-day → 공식몰 프로모션
+function heroSlide({ tone, href, eyebrow, title, desc, cta, art }) {
+  return el(href ? 'a' : 'div', { class: `hs ${tone}`, ...(href ? { href } : {}) },
+    el('div', { class: 'hs-txt' }, el('span', { class: 'hs-eyebrow' }, eyebrow), el('h2', {}, title), desc ? el('p', {}, desc) : '', cta ? el('div', { class: 'hs-cta' }, cta) : ''),
+    el('div', { class: 'hs-art', 'aria-hidden': 'true' }, art || ''));
+}
+// 제품 사진 (안 뜨면 그 자리만 비움)
+const hsImg = (no, cls = 'hs-img') => { const im = pic(no, { class: cls, loading: null }, () => im.remove()); return im; };
+function heroCarousel() {
+  const store = Object.entries(CATALOG).filter(([no, c]) => c.store && LEGO_IMG[no]);
+  const top = (flag, n) => store.filter(([, c]) => !flag || c.store.flags.includes(flag)).sort((a, b) => b[1].msrp - a[1].msrp).slice(0, n);
+  const slides = [];
+  // 1) 리브릭 소개: 공식몰 최고가 세트 3개를 겹쳐서
+  const trio = top('', 3);
+  const brand = heroSlide({ tone: 'navy', eyebrow: '레고 중고거래 · 시세 비교', title: ['레고만큼은,', el('br'), el('em', {}, '리브릭')],
+    desc: '세트번호 하나로 정가·중고 시세·브릭링크 가격까지. 비싸게 사지도, 싸게 팔지도 마세요.',
+    cta: [el('a', { class: 'btn primary', href: '#/sell' }, '내 세트 팔기'), el('a', { class: 'btn glass', href: '#/prices' }, '시세 찾아보기')],
+    art: trio.length === 3 ? el('div', { class: 'hs-collage' }, trio.map(([no], k) => hsImg(no, 'c' + (k + 1)))) : '' });
+  if (trio.length < 3) brand.querySelector('.hs-art').insertAdjacentHTML('beforeend', BANNER_ART);
+  slides.push(brand);
+  // 2) 곧 단종 (가장 비싼 세트)
+  const [retire] = top('retiringSoon', 1);
   if (retire) {
     const [no, c] = retire;
-    const s = el('a', { class: 'banner slim warm', href: `#/set/${no}` },
-      el('span', { class: 'eyebrow' }, '⏳ 곧 단종'),
-      el('h2', {}, c.name),
-      el('p', {}, `#${no} · 공식몰 ${won(c.msrp)} · 단종되면 중고 가격이 오르는 경우가 많아요.`),
-      el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '시세 보기')));
-    if (imgsOf(no).length) { const im = pic(no, { class: 'art photo', loading: null }, () => im.remove()); s.append(im); }
-    slides.push(s);
+    slides.push(heroSlide({ tone: 'amber', href: `#/set/${no}`, eyebrow: '⏳ 단종 임박', title: c.name,
+      desc: `단종되면 중고 시세가 오르는 경우가 많아요. 지금 공식몰 가격과 중고 시세를 비교해 보세요.`,
+      cta: el('span', { class: 'btn primary' }, '시세 보기 →'),
+      art: [hsImg(no), el('span', { class: 'hs-chip' }, el('small', {}, `#${no} 공식몰`), won(c.msrp))] }));
   }
+  // 3) 신제품 (가장 비싼 새 세트)
+  const [fresh] = top('new', 1);
+  if (fresh) {
+    const [no, c] = fresh;
+    slides.push(heroSlide({ tone: 'violet', href: `#/set/${no}`, eyebrow: 'NEW · 이달의 신제품', title: c.name,
+      desc: `${c.theme} · ${c.pieces ? c.pieces.toLocaleString('ko-KR') + '피스 · ' : ''}공식몰 새로 나온 세트예요.`,
+      cta: el('span', { class: 'btn primary' }, '자세히 보기 →'),
+      art: [hsImg(no), el('span', { class: 'hs-chip' }, el('small', {}, `#${no} 공식몰`), won(c.store.price || c.msrp))] }));
+  }
+  // 4) 코믹콘 D-day: 한정판 미니피규어 두 장
+  if (SDCC) slides.push(heroSlide({ tone: 'night', href: '#/limited', eyebrow: '한정판의 성지, 코믹콘', title: [`${SDCC.name}까지 `, el('em', {}, `D-${daysUntil(SDCC.from)}`)],
+    desc: `역대 코믹콘 한정판 ${LIMITED.length}개의 지금 시세를 확인해 보세요.`, cta: el('span', { class: 'btn primary' }, '한정판 시세 보기 →'),
+    art: el('div', { class: 'hs-figs' }, ['comcon029', 'comcon014'].map((no, k) => el('span', { class: 'hs-fig' }, hsImg(no, ''), el('small', {}, k ? "SDCC '11" : "SDCC '13")))) }));
+  // 5) 공식몰 프로모션 (사은품 사진)
   const p = PROMOS.find(x => promoState(x) === 'now' && x.gift) || PROMOS.find(x => promoState(x) === 'soon');
-  if (p) slides.push(el('a', { class: 'banner slim green', href: '#/promos' },
-    el('span', { class: 'eyebrow' }, '🎁 공식몰 프로모션 ' + (promoState(p) === 'now' ? '진행 중' : '예정')),
-    el('h2', {}, p.name),
-    el('p', {}, p.note || '레고 공식몰 사은품·할인 소식이에요.'),
-    el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '프로모션 보기'))));
-  const track = el('div', { class: 'hc-track' }, slides.map(s => el('div', { class: 'hc-slide' }, s)));
+  if (p) slides.push(heroSlide({ tone: 'emerald', href: '#/promos', eyebrow: '🎁 공식몰 프로모션 ' + (promoState(p) === 'now' ? '진행 중' : '예정'), title: p.name,
+    desc: p.note || '레고 공식몰 사은품·할인 소식이에요.', cta: el('span', { class: 'btn primary' }, '프로모션 보기 →'), art: p.gift ? hsImg(p.gift) : '' }));
+
+  const N = slides.length, pad = n => String(n).padStart(2, '0');
+  const track = el('div', { class: 'hc-track' }, slides.map((s, k) => el('div', { class: 'hc-slide', role: 'group', 'aria-roledescription': '슬라이드', 'aria-label': `${k + 1} / ${N}` }, s)));
+  const count = el('span', { class: 'hc-count' });
+  const prog = el('div', { class: 'hc-prog' }, slides.map((_, k) => el('button', { type: 'button', 'aria-label': `${k + 1}번째 배너 보기`, onclick: () => go(k) }, el('i', {}))));
   let i = 0;
-  const dots = el('div', { class: 'hc-dots', role: 'tablist', 'aria-label': '배너' });
-  const go = n => {
-    i = (n + slides.length) % slides.length;
+  function go(n) {
+    i = (n + N) % N;
     track.style.transform = `translateX(-${i * 100}%)`;
-    dots.querySelectorAll('button').forEach((d, k) => d.setAttribute('aria-selected', String(k === i)));
-  };
-  slides.forEach((_, k) => dots.append(el('button', { type: 'button', 'aria-label': `${k + 1}번째 배너`, 'aria-selected': String(k === 0), onclick: () => go(k) })));
-  const box = el('section', { class: 'hc', 'aria-roledescription': '배너' }, track, dots,
-    el('button', { type: 'button', class: 'hc-arrow prev', 'aria-label': '이전 배너', onclick: () => go(i - 1) }, '‹'),
-    el('button', { type: 'button', class: 'hc-arrow next', 'aria-label': '다음 배너', onclick: () => go(i + 1) }, '›'));
-  if (calm()) box.classList.add('calm');
-  const st = hoverPause(box);
-  const t = setInterval(() => { if (!box.isConnected) return clearInterval(t); if (!st.paused && !document.hidden) go(i + 1); }, 5000);
-  // 휴대폰: 손가락으로 밀어서 넘기기
+    count.replaceChildren(el('b', {}, pad(i + 1)), ` / ${pad(N)}`);
+    const bs = [...prog.children];
+    bs.forEach((b, k) => { b.classList.remove('on'); b.classList.toggle('done', k < i); b.setAttribute('aria-current', String(k === i)); });
+    void prog.offsetWidth;   // 막대 애니메이션을 처음부터 다시
+    bs[i].classList.add('on');
+  }
+  const box = el('section', { class: 'hc', 'aria-roledescription': '배너', 'aria-label': '리브릭 소식' }, track,
+    el('div', { class: 'hc-ctrl' }, count, prog,
+      el('div', { class: 'hc-nav' }, el('button', { type: 'button', 'aria-label': '이전 배너', onclick: () => go(i - 1) }, '‹'),
+        el('button', { type: 'button', 'aria-label': '다음 배너', onclick: () => go(i + 1) }, '›'))));
+  // 진행 막대(5초)가 다 차면 다음 장 — 멈춤은 CSS(.paused)가 막대를 세우는 것으로
+  box.addEventListener('animationend', e => { if (e.animationName === 'hcfill') go(i + 1); });
+  const pause = on => box.classList.toggle('paused', on);
+  box.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') pause(true); });
+  box.addEventListener('pointerleave', () => pause(false));
+  box.addEventListener('focusin', () => pause(true));
+  box.addEventListener('focusout', () => pause(false));
+  document.addEventListener('visibilitychange', () => box.classList.toggle('hidden-tab', document.hidden));
+  // 휴대폰: 손가락으로 밀어서 넘기기 (만지는 동안 멈춤)
   let x0 = null;
-  box.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
-  box.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1)); x0 = null; }, { passive: true });
+  box.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; pause(true); }, { passive: true });
+  box.addEventListener('touchend', e => {
+    pause(false);
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1));
+    x0 = null;
+  }, { passive: true });
+  go(0);
   return box;
 }
 function renderHero(part) {
-  const banner = el('section', { class: 'banner slim' },
-    el('span', { class: 'eyebrow' }, '레고 중고거래, 이제 시세 보고 하세요'),
-    el('h2', {}, '레고만큼은, ', el('em', {}, '리브릭')),
-    el('p', {}, '세트번호 하나로 정가·중고 시세·브릭링크 가격까지. 비싸게 사지도, 싸게 팔지도 마세요.'),
-    el('div', { class: 'bar' }, el('a', { class: 'btn primary', href: '#/sell' }, '내 세트 팔기'), el('a', { class: 'btn glass', href: '#/prices' }, '시세 찾아보기')));
-  banner.insertAdjacentHTML('beforeend', BANNER_ART);
-  if (part === 'banner') return heroCarousel(banner);
+  if (part === 'banner') return heroCarousel();
   const sc = (href, ic, label, color) => el('a', { class: 'shortcut', href },
     el('span', { class: 'tile', style: `--t:color-mix(in srgb, ${color} 13%, var(--surface));color:${color}` }, icon(ic)), label);
   const p = PROMOS.find(x => promoState(x) === 'now' && x.gift) || PROMOS.find(x => promoState(x) === 'soon');
