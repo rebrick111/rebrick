@@ -132,11 +132,30 @@ function imgOf(no) {
   // 공식몰 세트는 역대 목록에서 뺀 것(조립판 등)이나 새로 나온 것도 이미지가 있을 수 있어 일단 시도 (없으면 자리표시)
   return (c?.rb || c?.store) && !isFig(no) ? RB_IMG + (/-\d+$/.test(no) ? no : no + '-1') + '.jpg' : '';
 }
+// (2026-10-30) 이미지 후보를 차례로: ①레고 공식몰(legoimg.js) ②Rebrickable ③브릭링크 이미지 서버(코믹콘 한정판·옛 세트까지 거의 다 있음)
+const LEGO_IMG = Object.fromEntries((window.BRICK_LEGO_IMG || '').trim().split('\n').filter(Boolean).map(l => {
+  const [no, id, file] = l.split('|');
+  return [no, `https://www.lego.com/cdn/cs/set/assets/blt${id}/${file || no + '_Prod.png'}?format=webply&fit=bounds&quality=75&width=480`];
+}));
+function imgsOf(no) {
+  no = String(no || '').trim();
+  if (!no) return [];
+  const base = no.replace(/-1$/, ''), f = isFig(base);
+  const bl = `https://img.bricklink.com/ItemImage/${f ? 'MN' : 'SN'}/0/${encodeURIComponent(BL[base]?.id || (f ? base : /-\d+$/.test(no) ? no : no + '-1'))}.png`;
+  return [...new Set([LEGO_IMG[base], imgOf(no), bl].filter(Boolean))];
+}
+// 이미지 칸에 후보를 하나씩 넣어 보고, 다 안 되면 fail()
+function chainImg(img, list, fail) {
+  let i = 0;
+  const next = () => { if (i < list.length) img.src = list[i++]; else fail?.(); };
+  img.onerror = next;
+  next();
+  return img;
+}
+const pic = (no, attrs, fail) => chainImg(el('img', { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', ...attrs }), imgsOf(no), fail);
 // 표 한 줄용 작은 이미지 + 세트번호
 function miniThumb(no) {
-  const src = imgOf(no);
-  const img = src ? el('img', { src, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : el('i', {});
-  if (src) img.onerror = () => img.replaceWith(el('i', {}));
+  const img = imgsOf(no).length ? pic(no, {}, () => img.replaceWith(el('i', {}))) : el('i', {});
   return el('a', { class: 'refthumb', href: `#/set/${encodeURIComponent(no)}`, 'aria-label': `${no} 시세` }, img, el('span', { class: 'setno' }, `#${no}`));
 }
 const placeholder = it => el('div', { class: 'ph', style: `--c:${THEMES[it.theme] || THEMES['기타']}`, role: 'img', 'aria-label': `${it.name || it.set_no || ''} 사진 없음` },
@@ -145,12 +164,9 @@ const placeholder = it => el('div', { class: 'ph', style: `--c:${THEMES[it.theme
 // 판매자 사진 → 없으면 공식 이미지(판매 글이면 '공식 이미지' 표시) → 그것도 없으면 테마색 자리표시
 function thumb(it) {
   if (it.photos?.length) return el('img', { src: it.photos[0], alt: `${it.name} 사진`, loading: 'lazy' });
-  const src = imgOf(it.set_no);
-  if (!src) return placeholder(it);
+  if (!imgsOf(it.set_no).length) return placeholder(it);
   const box = el('div', { class: 'catimg' });
-  const img = el('img', { src, alt: `${it.name || it.set_no} 공식 이미지`, loading: 'lazy', referrerpolicy: 'no-referrer' });
-  img.onerror = () => box.replaceWith(placeholder(it));
-  box.append(img);
+  box.append(pic(it.set_no, { alt: `${it.name || it.set_no} 공식 이미지` }, () => box.replaceWith(placeholder(it))));
   if (it.id) box.append(el('span', { class: 'catnote' }, '공식 이미지'));
   return box;
 }
@@ -686,8 +702,7 @@ function heroCarousel(first) {
       el('h2', {}, c.name),
       el('p', {}, `#${no} · 공식몰 ${won(c.msrp)} · 단종되면 중고 가격이 오르는 경우가 많아요.`),
       el('div', { class: 'bar' }, el('span', { class: 'btn primary' }, '시세 보기')));
-    const src = imgOf(no);
-    if (src) { const im = el('img', { class: 'art photo', src, alt: '', referrerpolicy: 'no-referrer' }); im.onerror = () => im.remove(); s.append(im); }
+    if (imgsOf(no).length) { const im = pic(no, { class: 'art photo', loading: null }, () => im.remove()); s.append(im); }
     slides.push(s);
   }
   const p = PROMOS.find(x => promoState(x) === 'now' && x.gift) || PROMOS.find(x => promoState(x) === 'soon');
