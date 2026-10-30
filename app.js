@@ -262,21 +262,33 @@ function renderTabbar() {
 }
 
 // ---- 안 읽은 채팅 (2026-10-30) ----------------------------------------------
-// DB에 '읽음' 기록이 없어서, 채팅방을 마지막으로 연 시각을 이 기기(localStorage)에 기억 → 그 뒤에 상대가 보낸 말이 있으면 안 읽음
+// 채팅방을 마지막으로 연 시각: DB(chat_reads, update_5.sql — 기기끼리 같음, 상대 화면의 '읽음'에도 씀) + 이 기기(localStorage) 중 늦은 쪽
+// 상대가 그 뒤에 보낸 말이 있으면 안 읽음
 const SEEN_KEY = 'chatSeen';
 const seenMap = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch (e) { return {}; } };
+async function seenAll() {
+  const m = seenMap();
+  if (sb && me) {
+    const { data } = await sb.from('chat_reads').select('listing_id, buyer_id, read_at').eq('user_id', me.id);
+    (data || []).forEach(r => { const k = `${r.listing_id}/${r.buyer_id}`; if (!m[k] || new Date(r.read_at) > new Date(m[k])) m[k] = r.read_at; });
+  }
+  return m;
+}
 const isNewer = (m, seen) => m.sender_id !== me?.id && (!seen || new Date(m.created_at) > new Date(seen));
 function markSeen(room) {
   const m = seenMap(); m[room] = new Date().toISOString();
   try { localStorage.setItem(SEEN_KEY, JSON.stringify(m)); } catch (e) {}
   if (unread.delete(room)) paintUnread();
+  const [l, b] = room.split('/');
+  if (sb && me) sb.rpc('mark_read', { l: +l, b }).then(() => {}, () => {});
 }
 let unread = new Set(), inbox = null;
 async function checkUnread() {
   unread = new Set();
   if (sb && me) {
-    const { data } = await sb.from('messages').select('listing_id, buyer_id, sender_id, created_at').order('created_at', { ascending: false }).limit(300);
-    const seen = seenMap(), last = new Map();
+    const [{ data }, seen] = await Promise.all([
+      sb.from('messages').select('listing_id, buyer_id, sender_id, created_at').order('created_at', { ascending: false }).limit(300), seenAll()]);
+    const last = new Map();
     (data || []).forEach(m => { const k = `${m.listing_id}/${m.buyer_id}`; if (!last.has(k)) last.set(k, m); });
     last.forEach((m, k) => { if (isNewer(m, seen[k])) unread.add(k); });
   }
@@ -297,7 +309,7 @@ function watchInbox() {
   inbox = sb.channel('inbox-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) => {
     if (m.sender_id === me.id) return;
     const k = `${m.listing_id}/${m.buyer_id}`;
-    if (location.hash === `#/chat/${k}`) { markSeen(k); return; }
+    if (location.hash === `#/chat/${k}`) return;   // 보고 있는 방은 renderChat이 읽음 처리
     unread.add(k); paintUnread();
     if (location.hash === '#/chats') route();
   }).subscribe();
@@ -1995,7 +2007,7 @@ async function renderChats() {
   const otherIds = [...new Set([...rooms.values()].map(m => { const l = byId.get(m.listing_id); return l && l.seller_id === me.id ? m.buyer_id : l?.seller_id; }).filter(Boolean))];
   const { data: ps } = otherIds.length ? await sb.from('profiles').select('id, nickname').in('id', otherIds) : { data: [] };
   const nick = new Map((ps || []).map(p => [p.id, p.nickname]));
-  const seen = seenMap();
+  const seen = await seenAll();
   unread = new Set([...rooms].filter(([k, m]) => isNewer(m, seen[k])).map(([k]) => k));
   paintUnread();
   const rows = [...rooms.entries()].map(([k, m]) => {
@@ -2022,18 +2034,47 @@ async function renderChat(listingId, buyerId) {
   const otherId = me.id === l.seller_id ? buyerId : l.seller_id;
   const { data: other } = await sb.from('profiles').select('nickname').eq('id', otherId).maybeSingle();
 
+  const room = `${l.id}/${buyerId}`;
   const box = el('div', { class: 'msgs', role: 'log', 'aria-live': 'polite' });
+  // 상대가 입력 중일 때: 리브릭 로고 3개가 차례로 통통 (Realtime broadcast 'typing', DB 안 씀)
+  const typing = el('div', { class: 'typing', hidden: true, role: 'status', 'aria-label': `${other?.nickname || '상대방'}님이 입력 중이에요` },
+    [0, 1, 2].map(() => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<use href="#mark"/>'; return s; }));
+  let typingTimer = 0;
+  const showTyping = on => {
+    clearTimeout(typingTimer);
+    typing.hidden = !on;
+    if (on) { box.append(typing); box.scrollTop = box.scrollHeight; typingTimer = setTimeout(() => { typing.hidden = true; }, 4000); }
+  };
+  // 내가 보낸 말 옆 '읽음 / 안읽음' (상대의 chat_reads.read_at 이전에 보낸 말 = 읽음)
+  const mine = [];
+  let otherRead = null;
+  const paintReads = () => mine.forEach(x => {
+    const r = otherRead && new Date(x.at) <= otherRead;
+    x.tag.textContent = r ? '읽음' : '안읽음';
+    x.tag.classList.toggle('unread', !r);
+  });
   const seen = new Set();
   const add = m => {
     if (seen.has(m.id)) return;
     seen.add(m.id);
-    box.append(el('div', { class: 'msg' + (m.sender_id === me.id ? ' me' : '') }, m.body,
-      el('time', { datetime: m.created_at }, new Date(m.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))));
+    const mineMsg = m.sender_id === me.id;
+    const tag = mineMsg ? el('span', { class: 'rd' }) : '';
+    box.append(el('div', { class: 'msg' + (mineMsg ? ' me' : '') }, m.body,
+      el('time', { datetime: m.created_at }, new Date(m.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }), tag)));
+    if (mineMsg) { mine.push({ at: m.created_at, tag }); paintReads(); }
     // 상대가 보낸 말에 사기 신호가 있으면 바로 아래에 주의 안내
-    if (m.sender_id !== me.id) riskOf(m.body).forEach(w => box.append(el('div', { class: 'msg-warn', role: 'note' }, '⚠️ ' + w)));
+    else { riskOf(m.body).forEach(w => box.append(el('div', { class: 'msg-warn', role: 'note' }, '⚠️ ' + w))); showTyping(false); }
+    if (!typing.hidden) box.append(typing);
     box.scrollTop = box.scrollHeight;
   };
   const input = el('input', { id: 'chatInput', maxlength: 1000, placeholder: '메시지를 입력하세요', autocomplete: 'off' });
+  let ch = null, lastTyping = 0;
+  const sendTyping = stop => ch?.send({ type: 'broadcast', event: 'typing', payload: { u: me.id, stop } });
+  input.oninput = () => {
+    const now = Date.now();
+    if (!input.value.trim()) { if (lastTyping) { sendTyping(true); lastTyping = 0; } return; }
+    if (now - lastTyping > 2000) { lastTyping = now; sendTyping(false); }   // 2초에 한 번만
+  };
   const st = status();
   const form = el('form', { class: 'send' }, input, el('button', { type: 'submit', class: 'primary' }, '보내기'));
   form.onsubmit = async e => {
@@ -2041,6 +2082,7 @@ async function renderChat(listingId, buyerId) {
     const body = input.value.trim();
     if (!body) return;
     input.value = '';
+    lastTyping = 0; sendTyping(true);
     const { data, error } = await sb.from('messages').insert({ listing_id: l.id, buyer_id: buyerId, body }).select().single();
     if (error) { st.className = 'status err'; st.textContent = errMsg(error); input.value = body; return; }
     st.textContent = ''; add(data);
@@ -2059,13 +2101,29 @@ async function renderChat(listingId, buyerId) {
         el('li', {}, '안전결제·결제 링크는 누르지 마세요. 리브릭에는 그런 기능이 없어요.')),
       el('a', { href: '#/safety' }, '안전거래 가이드 전체 보기 →'))));
 
-  const { data: msgs, error: e2 } = await sb.from('messages').select('*').eq('listing_id', l.id).eq('buyer_id', buyerId).order('created_at');
+  const [{ data: msgs, error: e2 }, { data: rd }] = await Promise.all([
+    sb.from('messages').select('*').eq('listing_id', l.id).eq('buyer_id', buyerId).order('created_at'),
+    sb.from('chat_reads').select('read_at').eq('listing_id', l.id).eq('buyer_id', buyerId).eq('user_id', otherId).maybeSingle()]);
   if (e2) throw e2;
+  if (rd) otherRead = new Date(rd.read_at);
   msgs.forEach(add);
-  markSeen(`${l.id}/${buyerId}`);   // 이 방은 읽음
+  markSeen(room);   // 이 방은 읽음
   if (!msgs.length) box.append(el('div', { class: 'hint' }, '첫 메시지를 보내 보세요. 예: "아직 판매 중인가요?"'));
-  channel = sb.channel(`room-${l.id}-${buyerId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `listing_id=eq.${l.id}` }, ({ new: m }) => { if (m.buyer_id === buyerId) add(m); })
+  // 보고 있는 중에 온 말: 화면이 켜져 있으면 바로 읽음, 다른 탭·앱에 가 있으면 돌아왔을 때 읽음
+  const readWhenVisible = () => {
+    if (!document.hidden) return markSeen(room);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && location.hash === `#/chat/${room}`) markSeen(room); }, { once: true });
+  };
+  ch = channel = sb.channel(`room-${l.id}-${buyerId}`, { config: { broadcast: { self: false } } })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `listing_id=eq.${l.id}` }, ({ new: m }) => {
+      if (m.buyer_id !== buyerId) return;
+      add(m);
+      if (m.sender_id !== me.id) readWhenVisible();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `listing_id=eq.${l.id}` }, ({ new: r }) => {
+      if (r?.buyer_id === buyerId && r.user_id === otherId) { otherRead = new Date(r.read_at); paintReads(); }
+    })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => { if (payload?.u === otherId) showTyping(!payload.stop); })
     .subscribe();
   input.focus();
 }

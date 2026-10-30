@@ -509,6 +509,16 @@ label.f.wide { grid-column: 1 / -1; }
 .msg { max-width: 75%; padding: 9px 13px; border-radius: 16px; background: var(--surface); justify-self: start; overflow-wrap: anywhere; white-space: pre-wrap; box-shadow: 0 1px 1px rgba(0,0,0,.04); }
 .msg.me { justify-self: end; background: var(--brand); color: var(--brand-ink); }
 .msg time { display: block; font-size: 11px; opacity: .7; }
+/* 내 말 옆 읽음 / 안읽음 — 안읽음은 노랑으로 눈에 띄게 (파란 말풍선 위) */
+.msg .rd { margin-left: 6px; font-weight: 700; }
+.msg .rd.unread { color: #ffd76a; }
+.msg.me time { opacity: .85; }
+/* 상대가 입력 중: 리브릭 로고 3개가 차례로 통통 */
+.typing { justify-self: start; display: flex; align-items: flex-end; gap: 5px; height: 40px; padding: 0 14px 9px; border-radius: 16px 16px 16px 6px; background: var(--surface); box-shadow: 0 1px 1px rgba(0,0,0,.04); }
+.typing svg { width: 17px; height: 17px; animation: tbounce 1.2s ease-in-out infinite; }
+.typing svg:nth-child(2) { animation-delay: .16s; }
+.typing svg:nth-child(3) { animation-delay: .32s; }
+@keyframes tbounce { 0%, 55%, 100% { transform: translateY(0); } 25% { transform: translateY(-8px); } }
 .send { display: flex; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .thumb img, .thumb .ph { transition: transform .25s ease; }
