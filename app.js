@@ -165,6 +165,7 @@ const ICONS = {
   chat: 'M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4.5-6 8-6s7 2 8 6',
   plus: 'M12 5v14M5 12h14',
+  home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z',
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',
   share: 'M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v12M7 8l5-5 5 5',
@@ -244,6 +245,31 @@ function renderNav() {
        el('a', { class: 'btn icon', href: '#/me', 'aria-label': '내 정보', title: '내 정보' }, icon('user'))]
     : [el('a', { class: 'btn ghost', href: '#/login' }, '로그인')]),
     el('a', { class: 'btn primary', href: '#/sell' }, icon('plus'), el('span', { class: 'label' }, '판매하기')));
+  renderTabbar();
+}
+// ---- 휴대폰 아래 탭 바 (당근·번개처럼) ----------------------------------------
+// 홈 · 시세 · [＋ 판매] · 채팅 · 내 정보 — 가운데 판매 버튼만 브랜드색으로 크게 (번개장터식). PC(720px 넘음)에선 숨김
+const TABS = [['#/', 'home', '홈'], ['#/prices', 'chart', '시세'], ['#/sell', 'plus', '판매'], ['#/chats', 'chat', '채팅'], ['#/me', 'user', '내 정보']];
+function renderTabbar() {
+  const bar = document.getElementById('tabbar');
+  if (!bar) return;
+  bar.replaceChildren(...TABS.map(([href, ic, label]) => href === '#/sell'
+    ? el('a', { class: 'tab sell', href, 'aria-label': '내 세트 판매하기' }, el('span', { class: 'fab' }, icon(ic)), el('span', {}, label))
+    : el('a', { class: 'tab', href: href === '#/me' && !me ? '#/login' : href }, icon(ic), el('span', {}, href === '#/me' && !me ? '로그인' : label))));
+  bar.querySelectorAll('a[href="#/"]').forEach(a => a.addEventListener('click', goHome));
+  markTabbar();
+}
+function markTabbar() {
+  const h = location.hash || '#/', page = h.replace(/^#\/?/, '').split('/')[0];
+  // 탭과 같은 묶음의 화면이면 그 탭을 표시 (세트 시세 화면은 '시세', 채팅방은 '채팅')
+  const which = { '': '#/', item: '#/', prices: '#/prices', set: '#/prices', compare: '#/prices', sell: '#/sell', edit: '#/sell',
+    chats: '#/chats', chat: '#/chats', me: '#/me', login: '#/me', collection: '#/me' }[page];
+  document.querySelectorAll('#tabbar a').forEach(a => {
+    const on = which && (a.getAttribute('href') === which || (which === '#/me' && a.getAttribute('href') === '#/login'));
+    on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
+  });
+  // 채팅방 안에서는 입력칸을 가리지 않게 탭 바를 숨김 (당근·번개도 같음)
+  document.body.classList.toggle('no-tabbar', page === 'chat');
 }
 // 화이트 / 다크 모드: 기본 화이트, 고른 것은 이 브라우저에 기억
 function setTheme(dark, save = true) {
@@ -279,11 +305,12 @@ drawer.addEventListener('click', e => { if (e.target.closest('[data-close], a'))
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && drawer.classList.contains('open')) setDrawer(false); });
 // 로고·'홈'을 누르면 검색어·테마·상태·거래 방식·정렬을 모두 지우고 처음 화면으로
 // (이미 #/ 이면 주소가 안 바뀌어 화면이 그대로라서 직접 다시 그림)
-document.querySelectorAll('.logo, #menu a[href="#/"], #drawer a[href="#/"]').forEach(a => a.addEventListener('click', () => {
+function goHome() {
   Object.assign(filters, { q: '', theme: '', cond: '', trade: '', sort: 'new', showSold: false });
   document.getElementById('q').value = '';
   if (location.hash === '#/' || !location.hash) { window.scrollTo(0, 0); renderList(); }
-}));
+}
+document.querySelectorAll('.logo, #menu a[href="#/"], #drawer a[href="#/"]').forEach(a => a.addEventListener('click', goHome));
 // 둘러보기 메뉴에서 지금 화면 표시
 function markMenu() {
   const h = location.hash || '#/';
@@ -311,6 +338,7 @@ async function route() {
   const [page, a, b] = location.hash.replace(/^#\/?/, '').split('/');
   window.scrollTo(0, 0);
   markMenu();
+  markTabbar();
   try {
     if (page === 'item' && a) return await renderItem(+a);
     if (page === 'sell') return await renderForm(null, a ? decodeURIComponent(a) : '');

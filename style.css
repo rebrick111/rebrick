@@ -543,6 +543,37 @@ label.f.wide { grid-column: 1 / -1; }
          box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .toast.err { background: var(--red); color: #fff; }
 
+/* 휴대폰 아래 탭 바 — 당근(5탭·글자+선 아이콘)·번개(가운데 등록 버튼 강조)를 섞음. 반투명 흰 바탕 + 흐림, 지금 탭만 진하게 */
+.tabbar { display: none; }
+@media (max-width: 720px) {
+  .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+            padding: 6px max(6px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-right, 0px));
+            background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6);
+            border-top: 1px solid var(--line); }
+  .tabbar .tab { display: grid; justify-items: center; gap: 2px; padding: 4px 0 2px; color: var(--faint); font-size: 11px; font-weight: 600;
+                 letter-spacing: -.02em; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .tabbar .tab svg { width: 25px; height: 25px; transition: transform .15s; }
+  .tabbar .tab svg path { stroke-width: 1.8; }
+  .tabbar .tab[aria-current] { color: var(--fg); font-weight: 800; }
+  .tabbar .tab[aria-current] svg path { stroke-width: 2.4; }
+  .tabbar .tab:active svg { transform: scale(.88); }
+  /* 가운데 판매 버튼: 브랜드 파랑 둥근 사각 + 살짝 떠 있음 */
+  .tabbar .tab.sell { color: var(--fg); }
+  .tabbar .fab { display: grid; place-items: center; width: 46px; height: 46px; margin-top: -20px; border-radius: 16px;
+                 background: var(--brand); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--brand) 45%, transparent), 0 0 0 4px var(--bg); }
+  .tabbar .fab svg { width: 24px; height: 24px; }
+  .tabbar .fab svg path { stroke-width: 2.6; }
+  .tabbar .tab.sell:active .fab { transform: scale(.94); }
+  /* 탭 바에 가리지 않게 아래 여백, 알림은 탭 바 위로 */
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  /* 판매하기·채팅·내 정보·로그인은 아래 탭 바로 옮겼으니 위 머리띠에선 숨김 */
+  #nav { display: none; }
+  body.no-tabbar { padding-bottom: 0; }
+  body.no-tabbar .tabbar { display: none; }
+  body.no-tabbar .toast { bottom: max(24px, env(safe-area-inset-bottom, 0px)); }
+}
+
 /* 아래 안내 */
 .foot { background: var(--surface-2); padding-block: 32px 40px; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .foot p { margin: 0; }
