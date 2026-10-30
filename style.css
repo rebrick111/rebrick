@@ -814,8 +814,8 @@ a.seg-b { text-align: center; text-decoration: none; }
 .kchip.grade-C { background: var(--red-soft); color: var(--red); }
 /* 📈 실거래 그래프: 선 하나(브랜드 파랑 2px) + 점 8px + 흐린 눈금, 점에 대면 말풍선 */
 .chartbox { margin: 0; display: grid; gap: 6px; }
-.chartwrap { position: relative; }
-.schart { width: 100%; height: auto; display: block; overflow: visible; }
+.chartwrap { position: relative; max-width: 560px; }
+.schart { width: 100%; max-width: 560px; height: auto; display: block; overflow: visible; }
 .schart .g { stroke: var(--line); stroke-width: 1; }
 .schart .ax { fill: var(--faint); font-size: 12px; font-family: var(--font-ui); }
 .schart .ln { fill: none; stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }

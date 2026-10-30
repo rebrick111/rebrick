@@ -635,13 +635,13 @@ async function renderUser(uid) {
 // ---- 📈 실거래가 그래프 (2026-10-30) -------------------------------------------------
 // 판매완료 때 적은 가격을 달마다 평균 (한 건씩은 안 보여 줌 — 판매완료 화면 약속대로 평균만), 선 하나 = 한 축
 async function soldChart(no) {
-  const since = new Date(Date.now() - 730 * 86400000).toISOString();
+  const since = new Date(Date.now() - 365 * 86400000).toISOString();
   const { data } = await sb.from('listings').select('sold_price, sold_at').eq('set_no', no).eq('status', 'sold').not('sold_price', 'is', null).gte('sold_at', since).order('sold_at');
   const byM = new Map();
   (data || []).forEach(r => { const k = r.sold_at.slice(0, 7); const m = byM.get(k) || { s: 0, n: 0 }; m.s += r.sold_price; m.n++; byM.set(k, m); });
   const pts = [...byM].map(([k, m]) => ({ k, v: Math.round(m.s / m.n), n: m.n }));
   if (!pts.length) return '';
-  const W = 640, H = 220, L = 58, R = 18, T = 18, B = 30;
+  const W = 400, H = 190, L = 48, R = 14, T = 20, B = 26;   // 휴대폰 폭에서도 글자가 작아지지 않게 작게 그림
   const mi = k => { const [y, m] = k.split('-').map(Number); return y * 12 + m; };
   const x0 = mi(pts[0].k), x1 = Math.max(mi(pts[pts.length - 1].k), x0 + 1);
   let lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v));
@@ -659,7 +659,7 @@ async function soldChart(no) {
   if (pts.length > 1) s += `<path class="ln" d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.k)},${Y(p.v)}`).join('')}"/>`;
   s += pts.map(p => `<circle class="pt" cx="${X(p.k)}" cy="${Y(p.v)}" r="4"/>`).join('');
   const last = pts[pts.length - 1];
-  s += `<text class="dl" x="${Math.min(X(last.k), W - R - 4)}" y="${Y(last.v) - 12}" text-anchor="${X(last.k) > W - 90 ? 'end' : 'middle'}">${short(last.v)}</text>`;
+  s += `<text class="dl" x="${Math.min(X(last.k), W - R - 4)}" y="${Y(last.v) - 12}" text-anchor="${X(last.k) > W - 60 ? 'end' : 'middle'}">${short(last.v)}</text>`;
   svg.innerHTML = s;
   // 마우스·손가락을 점 가까이 대면 말풍선 (점보다 큰 투명 원)
   const tip = el('div', { class: 'ctip', hidden: true });
@@ -671,7 +671,7 @@ async function soldChart(no) {
     hit.addEventListener('pointerenter', on); hit.addEventListener('pointerdown', on); hit.addEventListener('pointerleave', () => { tip.hidden = true; });
     svg.append(hit);
   });
-  return el('figure', { class: 'chartbox' }, el('figcaption', { class: 'small' }, `리브릭 실거래 월 평균 · 최근 2년 · ${pts.reduce((a, p) => a + p.n, 0)}건`), el('div', { class: 'chartwrap' }, svg, tip));
+  return el('figure', { class: 'chartbox' }, el('figcaption', { class: 'small' }, `월 평균 거래가 · ${pts.reduce((a, p) => a + p.n, 0)}건 · 점에 대면 자세히`), el('div', { class: 'chartwrap' }, svg, tip));
 }
 function markTabbar() {
   const h = location.hash || '#/', page = h.replace(/^#\/?/, '').split('/')[0];
