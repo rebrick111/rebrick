@@ -385,6 +385,78 @@ async function fillLikeCounts(ids) {
   document.querySelectorAll('[data-likes]').forEach(s => { const v = n.get(+s.dataset.likes) || 0; s.textContent = v ? `♥ ${v}` : ''; });
 }
 
+// ---- 닉네임 (2026-10-30, update_7.sql) ------------------------------------------
+// 2~12자 한글·영문·숫자·_ / 겹치면 안 됨(대소문자 무시) — DB 고유 색인이 최종으로 막고, 여기선 입력하는 동안 미리 알려 줌
+// 가입하면 임시 닉네임 '브릭러+6자리' → 판매·채팅 전에 꼭 정하게, 다른 화면엔 위쪽 안내 띠
+const NICK_RE = /^[가-힣A-Za-z0-9_]{2,12}$/;
+const isDefaultNick = n => n === '브릭러' || /^브릭러[0-9a-f]{6,8}$/.test(n || '');
+let myNick = '', needNick = false;
+async function loadMyNick(justLoggedIn = false) {
+  myNick = ''; needNick = false;
+  if (sb && me) {
+    const { data } = await sb.from('profiles').select('nickname').eq('id', me.id).maybeSingle();
+    myNick = data?.nickname || '';
+    needNick = isDefaultNick(myNick);
+  }
+  paintNickBanner();
+  // 방금 로그인했거나, 닉네임 없이 판매·채팅 화면에 와 있으면 정하는 화면으로
+  const page = (location.hash || '#/').replace(/^#\/?/, '').split('/')[0];
+  if (needNick && (justLoggedIn || NICK_PAGES.includes(page))) route();
+}
+const NICK_PAGES = ['sell', 'edit', 'chat'];
+function paintNickBanner() {
+  document.getElementById('nickBanner')?.remove();
+  if (!me || !needNick || location.hash.startsWith('#/nickname')) return;
+  document.querySelector('main').prepend(el('a', { id: 'nickBanner', class: 'nickbanner', href: '#/nickname' },
+    el('span', {}, `👋 지금은 임시 닉네임(${myNick})이에요. 거래 상대가 알아볼 수 있게 나만의 닉네임을 정해 주세요`), el('b', {}, '정하기 →')));
+}
+function nickField(initial, onSaved) {
+  const RULE = '2~12자 · 한글·영문·숫자·_ · 다른 사람과 겹치면 안 돼요';
+  const inp = el('input', { id: 'nickInput', maxlength: 12, value: isDefaultNick(initial) ? '' : initial, placeholder: '예: 브릭왕, lego_kim', autocomplete: 'off', 'aria-describedby': 'nickMsg' });
+  const msg = el('div', { id: 'nickMsg', class: 'small nickmsg', 'aria-live': 'polite' }, RULE);
+  const btn = el('button', { type: 'submit', class: 'primary' }, '닉네임 저장');
+  const say = (t, cls = '') => { msg.textContent = t; msg.className = 'small nickmsg ' + cls; };
+  let timer, last = '';
+  const check = async () => {
+    const n = inp.value.trim(); last = n;
+    if (!n) return say(RULE);
+    if (!NICK_RE.test(n)) return say('✕ 2~12자, 한글(완성된 글자)·영문·숫자·_ 만 쓸 수 있어요. 띄어쓰기·특수문자는 안 돼요.', 'bad');
+    if (n === initial) return say('지금 쓰는 닉네임이에요.', 'ok');
+    const { data, error } = await sb.rpc('nickname_check', { n });
+    if (n !== last) return;   // 그 사이 또 고쳤으면 무시
+    if (error) return say(needUpdate(error), 'bad');
+    say({ ok: '✓ 쓸 수 있는 닉네임이에요!', taken: '✕ 이미 다른 사람이 쓰고 있어요.', reserved: '✕ 운영자로 오해할 수 있는 이름은 쓸 수 없어요.', format: '✕ 2~12자, 한글·영문·숫자·_ 만 돼요.' }[data] || RULE, data === 'ok' ? 'ok' : 'bad');
+  };
+  inp.oninput = () => { clearTimeout(timer); timer = setTimeout(check, 300); };
+  const form = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '닉네임', inp), msg, el('div', { class: 'bar' }, btn));
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const n = inp.value.trim();
+    if (!NICK_RE.test(n)) { await check(); inp.focus(); return; }
+    if (n === initial) return say('지금 쓰는 닉네임이에요.', 'ok');
+    btn.disabled = true;
+    const { error } = await sb.from('profiles').update({ nickname: n }).eq('id', me.id);
+    btn.disabled = false;
+    if (error) return say(error.code === '23505' || /duplicate|unique/i.test(error.message) ? '✕ 방금 다른 사람이 이 닉네임을 가져갔어요. 다른 걸로 해 주세요.'
+      : /nickname_format|check constraint/i.test(error.message) ? '✕ 쓸 수 없는 닉네임이에요. (2~12자, 한글·영문·숫자·_, 운영자로 오해할 이름 금지)' : needUpdate(error), 'bad');
+    initial = n; myNick = n; needNick = false; paintNickBanner();
+    say('✓ 저장했어요!', 'ok');
+    toast(`이제 "${n}"(으)로 보여요.`);
+    onSaved?.(n);
+  };
+  return { form, inp };
+}
+// 닉네임 정하기 화면 (처음 로그인 · 판매·채팅 전에). 정하면 원래 가려던 곳으로
+function renderNickSetup(next = '#/') {
+  if (!me) return needLogin();
+  const { form, inp } = nickField(myNick, () => { if (location.hash === next) route(); else location.hash = next; });
+  show(el('section', { class: 'panel login' }, el('h2', {}, '👋 닉네임을 정해 주세요'),
+    el('p', {}, '채팅·후기·상품 화면에 이 이름으로 보여요. 다른 사람과 겹치지 않는 나만의 이름이에요. 나중에 내 정보에서 바꿀 수 있어요.'),
+    myNick ? el('div', { class: 'small' }, `지금: ${myNick}${isDefaultNick(myNick) ? ' (임시)' : ''}`) : '', form,
+    next !== '#/' ? el('a', { class: 'small', href: '#/' }, '나중에 할게요 (판매·채팅은 닉네임을 정해야 할 수 있어요)') : ''));
+  inp.focus();
+}
+
 // ---- 🔔 알림 · ⭐ 키워드 즐겨찾기 (2026-10-30, update_6.sql) -----------------------
 // 알림은 DB 트리거가 notifications 표에 넣음 (즐겨찾기 키워드 새 상품·찜한 상품 가격 인하·가격 제안·후기·신고 결과)
 // → 여기선 읽고, 실시간으로 받아서 머리띠 🔔에 빨간 숫자
@@ -767,7 +839,11 @@ async function route() {
   window.scrollTo(0, 0);
   markMenu();
   markTabbar();
+  paintNickBanner();
   try {
+    if (page === 'nickname') return renderNickSetup(a ? decodeURIComponent(a) : '#/');
+    // 임시 닉네임이면 판매·채팅 전에 먼저 닉네임부터
+    if (me && needNick && NICK_PAGES.includes(page)) return renderNickSetup(location.hash);
     if (page === 'item' && a) return await renderItem(+a);
     if (page === 'sell') return await renderForm(null, a ? decodeURIComponent(a) : '');
     if (page === 'edit' && a) return await renderForm(+a);
@@ -2327,18 +2403,25 @@ async function renderMe() {
     sb.from('listings').select('*').eq('seller_id', me.id).order('created_at', { ascending: false }),
   ]);
   if (error) throw error;
-  const nick = el('input', { id: 'meNick', maxlength: 20, value: prof?.nickname || '' });
   const region = el('input', { id: 'meRegion', maxlength: 30, placeholder: '예: 울산 동구', value: prof?.region || '' });
   const st = status();
-  const form = el('form', { class: 'panel' }, el('h2', {}, '내 정보'), el('div', { class: 'small' }, me.email),
-    el('div', { class: 'fields' }, el('label', { class: 'f' }, '닉네임', nick), el('label', { class: 'f' }, '기본 거래 지역', region)),
-    el('div', { class: 'bar' }, el('button', { type: 'submit', class: 'primary' }, '저장'), st, el('span', { class: 'grow' }),
+  // 닉네임은 따로 (쓸 수 있는지 바로 확인, 겹치면 DB가 거절)
+  const { form: nickForm } = nickField(prof?.nickname || '');
+  const form = el('section', { class: 'panel' }, el('h2', {}, '내 정보'), el('div', { class: 'small' }, me.email),
+    isDefaultNick(prof?.nickname) ? el('div', { class: 'risk', role: 'note' }, `👋 지금은 임시 닉네임(${prof?.nickname})이에요. 나만의 닉네임을 정해 주세요.`) : '',
+    nickForm,
+    (() => {
+      const f = el('form', { class: 'fields' }, el('label', { class: 'f' }, '기본 거래 지역', region),
+        el('div', { class: 'f', style: 'align-self:end' }, el('div', { class: 'bar' }, el('button', { type: 'submit' }, '지역 저장'), st)));
+      f.onsubmit = async e => {
+        e.preventDefault();
+        const { error } = await sb.from('profiles').update({ region: region.value.trim() }).eq('id', me.id);
+        st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
+      };
+      return f;
+    })(),
+    el('div', { class: 'bar' }, el('span', { class: 'grow' }),
       el('button', { type: 'button', class: 'ghost', onclick: async () => { await sb.auth.signOut(); location.hash = '#/'; } }, '로그아웃')));
-  form.onsubmit = async e => {
-    e.preventDefault();
-    const { error } = await sb.from('profiles').update({ nickname: nick.value.trim() || '브릭러', region: region.value.trim() }).eq('id', me.id);
-    st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
-  };
   // 비밀번호 정하기·바꾸기 (예전에 인증번호로만 가입한 사람도 여기서 정하면 다음부터 이메일+비밀번호로 로그인)
   const np = el('input', { type: 'password', minlength: 6, placeholder: '6자 이상', autocomplete: 'new-password' });
   const np2 = el('input', { type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
@@ -2636,10 +2719,14 @@ async function renderReport(listingId) {
       const was = me?.id;
       me = session?.user || null;
       renderNav();
-      if (was !== me?.id) { route(); checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved(); }
+      if (was !== me?.id) {
+        route(); checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
+        // 방금 로그인했는데 임시 닉네임이면 닉네임 정하기 화면으로
+        loadMyNick().then(() => { if (!was && me && needNick) location.hash = '#/nickname/' + encodeURIComponent(location.hash && location.hash !== '#/login' ? location.hash : '#/'); });
+      }
     });
   }
   renderNav();
   route();
-  checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
+  checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved(); loadMyNick();
 })();

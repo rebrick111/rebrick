@@ -826,3 +826,10 @@ a.seg-b { text-align: center; text-decoration: none; }
         font-size: 12.5px; font-weight: 600; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow); }
 /* 컬렉션 수익률 */
 .up-g { color: var(--ok); font-weight: 700; } .down-g { color: var(--red); font-weight: 700; }
+/* ---- 2026-10-30: 닉네임 ---- */
+.nickbanner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 1120px; margin: 0 auto 16px; padding: 12px 16px; border-radius: 14px;
+              background: var(--brand-soft); color: var(--fg); text-decoration: none; font-size: 14px; line-height: 1.5; }
+.nickbanner b { margin-left: auto; color: var(--brand); white-space: nowrap; }
+.nickform { display: grid; gap: 8px; max-width: 420px; }
+.nickmsg.ok { color: var(--ok); font-weight: 700; }
+.nickmsg.bad { color: var(--red); font-weight: 700; }
