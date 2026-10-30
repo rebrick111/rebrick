@@ -2046,10 +2046,11 @@ async function renderChat(listingId, buyerId) {
     if (on) { box.append(typing); box.scrollTop = box.scrollHeight; typingTimer = setTimeout(() => { typing.hidden = true; }, 4000); }
   };
   // 내가 보낸 말 옆 '읽음 / 안읽음' (상대의 chat_reads.read_at 이전에 보낸 말 = 읽음)
+  // 상대가 그 뒤에 답장했으면 읽은 것으로 봄 (읽음 기록이 생기기 전 대화도 맞게)
   const mine = [];
-  let otherRead = null;
+  let otherRead = null, otherLast = null;
   const paintReads = () => mine.forEach(x => {
-    const r = otherRead && new Date(x.at) <= otherRead;
+    const at = new Date(x.at), r = (otherRead && at <= otherRead) || (otherLast && at <= otherLast);
     x.tag.textContent = r ? '읽음' : '안읽음';
     x.tag.classList.toggle('unread', !r);
   });
@@ -2063,7 +2064,11 @@ async function renderChat(listingId, buyerId) {
       el('time', { datetime: m.created_at }, new Date(m.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }), tag)));
     if (mineMsg) { mine.push({ at: m.created_at, tag }); paintReads(); }
     // 상대가 보낸 말에 사기 신호가 있으면 바로 아래에 주의 안내
-    else { riskOf(m.body).forEach(w => box.append(el('div', { class: 'msg-warn', role: 'note' }, '⚠️ ' + w))); showTyping(false); }
+    else {
+      riskOf(m.body).forEach(w => box.append(el('div', { class: 'msg-warn', role: 'note' }, '⚠️ ' + w)));
+      showTyping(false);
+      otherLast = new Date(m.created_at); paintReads();
+    }
     if (!typing.hidden) box.append(typing);
     box.scrollTop = box.scrollHeight;
   };
