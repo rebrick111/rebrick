@@ -166,6 +166,7 @@ const ICONS = {
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4.5-6 8-6s7 2 8 6',
   plus: 'M12 5v14M5 12h14',
   home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z',
+  heart: 'M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z',
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',
   share: 'M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v12M7 8l5-5 5 5',
@@ -258,6 +259,93 @@ function renderTabbar() {
     : el('a', { class: 'tab', href: href === '#/me' && !me ? '#/login' : href }, icon(ic), el('span', {}, href === '#/me' && !me ? '로그인' : label))));
   bar.querySelectorAll('a[href="#/"]').forEach(a => a.addEventListener('click', goHome));
   markTabbar();
+  paintUnread();
+}
+
+// ---- 안 읽은 채팅 (2026-10-30) ----------------------------------------------
+// DB에 '읽음' 기록이 없어서, 채팅방을 마지막으로 연 시각을 이 기기(localStorage)에 기억 → 그 뒤에 상대가 보낸 말이 있으면 안 읽음
+const SEEN_KEY = 'chatSeen';
+const seenMap = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch (e) { return {}; } };
+const isNewer = (m, seen) => m.sender_id !== me?.id && (!seen || new Date(m.created_at) > new Date(seen));
+function markSeen(room) {
+  const m = seenMap(); m[room] = new Date().toISOString();
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(m)); } catch (e) {}
+  if (unread.delete(room)) paintUnread();
+}
+let unread = new Set(), inbox = null;
+async function checkUnread() {
+  unread = new Set();
+  if (sb && me) {
+    const { data } = await sb.from('messages').select('listing_id, buyer_id, sender_id, created_at').order('created_at', { ascending: false }).limit(300);
+    const seen = seenMap(), last = new Map();
+    (data || []).forEach(m => { const k = `${m.listing_id}/${m.buyer_id}`; if (!last.has(k)) last.set(k, m); });
+    last.forEach((m, k) => { if (isNewer(m, seen[k])) unread.add(k); });
+  }
+  paintUnread();
+}
+// 아래 탭 바·위 머리띠의 채팅 아이콘에 빨간 숫자
+function paintUnread() {
+  const n = unread.size;
+  document.querySelectorAll('#tabbar a[href="#/chats"], #nav a[href="#/chats"]').forEach(a => {
+    a.querySelector('.badge')?.remove();
+    if (n) a.append(el('span', { class: 'badge', 'aria-label': `안 읽은 채팅 ${n}개` }, n > 9 ? '9+' : String(n)));
+  });
+}
+// 새 메시지가 오면 바로 빨간 점 (채팅방 안에서 보고 있으면 읽음으로)
+function watchInbox() {
+  if (inbox) { sb.removeChannel(inbox); inbox = null; }
+  if (!sb || !me) return;
+  inbox = sb.channel('inbox-' + me.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) => {
+    if (m.sender_id === me.id) return;
+    const k = `${m.listing_id}/${m.buyer_id}`;
+    if (location.hash === `#/chat/${k}`) { markSeen(k); return; }
+    unread.add(k); paintUnread();
+    if (location.hash === '#/chats') route();
+  }).subscribe();
+}
+
+// ---- 찜 (♡) (2026-10-30, likes 표 = update_4.sql) ----------------------------
+// 내가 찜한 것만 나에게 보이고, 다른 사람에겐 개수만 (like_counts 함수)
+let myLikes = new Set();
+async function loadLikes() {
+  myLikes = new Set();
+  if (sb && me) {
+    const { data } = await sb.from('likes').select('listing_id');
+    (data || []).forEach(r => myLikes.add(r.listing_id));
+  }
+  document.querySelectorAll('[data-like]').forEach(paintLike);
+}
+function paintLike(b) {
+  const on = myLikes.has(+b.dataset.like);
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', String(on));
+  b.setAttribute('aria-label', on ? '찜 취소' : '찜하기');
+  const t = b.querySelector('.t'); if (t) t.textContent = on ? '찜함' : '찜하기';
+}
+// big = 상품 화면의 글자 있는 버튼, 아니면 사진 위 동그란 하트 (번개장터처럼)
+function likeBtn(it, big) {
+  const b = el('button', { type: 'button', class: big ? 'like big' : 'like', 'data-like': it.id }, icon('heart'), big ? el('span', { class: 't' }) : '');
+  b.onclick = async e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!me) { toast('로그인하면 찜할 수 있어요.'); location.hash = '#/login'; return; }
+    const on = !myLikes.has(it.id);
+    const paint = () => document.querySelectorAll(`[data-like="${it.id}"]`).forEach(paintLike);
+    on ? myLikes.add(it.id) : myLikes.delete(it.id); paint();
+    const { error } = on ? await sb.from('likes').insert({ listing_id: it.id })
+      : await sb.from('likes').delete().eq('listing_id', it.id).eq('user_id', me.id);
+    if (error) { on ? myLikes.delete(it.id) : myLikes.add(it.id); paint(); toast(needUpdate(error), true); return; }
+    if (on) toast('찜했어요 ♥ 내 정보에서 모아 볼 수 있어요.');
+  };
+  paintLike(b);
+  return b;
+}
+// 찜 개수 채우기: [data-likes="상품id"] 자리에 "♥ 3"
+async function fillLikeCounts(ids) {
+  if (!sb || !ids.length) return;
+  const { data, error } = await sb.rpc('like_counts', { ids });
+  if (error) return;
+  const n = new Map((data || []).map(r => [Number(r.listing_id), Number(r.n)]));
+  document.querySelectorAll('[data-likes]').forEach(s => { const v = n.get(+s.dataset.likes) || 0; s.textContent = v ? `♥ ${v}` : ''; });
 }
 function markTabbar() {
   const h = location.hash || '#/', page = h.replace(/^#\/?/, '').split('/')[0];
@@ -392,7 +480,8 @@ async function renderList() {
   const sold = el('input', { type: 'checkbox', id: 'fSold', checked: filters.showSold, style: 'width:auto' });
   sold.onchange = () => { filters.showSold = sold.checked; renderList(); };
   const summary = el('span', { class: 'summary' }, '불러오는 중…');
-  const grid = el('div', { class: 'grid', 'aria-label': '상품 목록', 'aria-busy': 'true' },
+  // 검색 결과는 휴대폰에서 3열로 촘촘하게 (번개장터처럼 한 화면에 많이)
+  const grid = el('div', { class: filters.q.trim() ? 'grid g3' : 'grid', 'aria-label': '상품 목록', 'aria-busy': 'true' },
     Array.from({ length: 5 }, () => el('div', { class: 'card skel', 'aria-hidden': 'true' }, el('div', { class: 'thumb' }),
       el('div', { class: 'body' }, el('i', {}), el('i', {}), el('i', { class: 'short' })))));
   const home = isHome();
@@ -446,18 +535,20 @@ async function renderList() {
     return;
   }
   grid.append(...list.map(listingCard));
+  fillLikeCounts(list.map(it => it.id));
 }
 // 상품 카드: 정사각 사진 → 이름 → 가격 → 정가 대비 → 상태·거래 방식 → 세트번호·지역
 function listingCard(it) {
   const p = ppp(it), v = vsMsrp(it);
   return el('a', { class: 'card' + (it.status === 'sold' ? ' sold' : ''), href: `#/item/${it.id}` },
-    el('div', { class: 'thumb' }, thumb(it), it.status !== 'selling' ? el('span', { class: 'flag' }, STATUS[it.status]) : ''),
+    el('div', { class: 'thumb' }, thumb(it), it.status !== 'selling' ? el('span', { class: 'flag' }, STATUS[it.status]) : '', likeBtn(it)),
     el('div', { class: 'body' },
       el('div', { class: 'name' }, it.name),
       el('div', { class: 'price' }, won(it.price)),
       v ? el('div', { class: v.cls }, v.text) : '',
       el('div', { class: 'tags' }, el('span', { class: `cond ${it.cond}` }, COND[it.cond]), tradeBadges(it)),
-      el('div', { class: 'meta' }, [it.set_no ? `#${it.set_no}` : '', it.region || '지역 미정', p ? `피스당 ${p.toLocaleString('ko-KR')}원` : ''].filter(Boolean).join(' · '))));
+      el('div', { class: 'meta' }, [it.set_no ? `#${it.set_no}` : '', it.region || '지역 미정', p ? `피스당 ${p.toLocaleString('ko-KR')}원` : ''].filter(Boolean).join(' · '),
+        el('span', { class: 'likes', 'data-likes': it.id }))));
 }
 // 공식몰 세트 카드 (상품이 아직 없을 때도 첫 화면이 비어 보이지 않게)
 function setCard([no, c], flagText) {
@@ -1406,7 +1497,8 @@ async function renderItem(id) {
       el('div', { class: 'offsite' }, el('div', {}, el('b', {}, '📣 더 빨리 팔고 싶다면'), el('div', { class: 'small' }, '당근·번개장터에도 올려 보세요. 리브릭 시세 링크가 붙은 판매글을 만들어 드려요.')),
         el('button', { type: 'button', class: 'primary', onclick: () => copyText(offsiteText(it), '판매글을 복사했어요. 당근·번개장터 글쓰기에 붙여 넣으세요.') }, '당근·번개용 글 복사')));
   } else {
-    actions = el('div', { class: 'bar' }, el('a', { class: 'btn primary', href: me ? `#/chat/${it.id}/${me.id}` : '#/login' }, me ? '판매자에게 채팅' : '로그인하고 채팅하기'),
+    actions = el('div', { class: 'bar' }, likeBtn(it, true), el('a', { class: 'btn primary', href: me ? `#/chat/${it.id}/${me.id}` : '#/login' }, me ? '판매자에게 채팅' : '로그인하고 채팅하기'),
+      el('span', { class: 'small likes', 'data-likes': it.id }),
       el('button', { type: 'button', onclick: () => shareLink(`${it.name} ${won(it.price)} | 리브릭`, `${location.origin}${location.pathname}#/item/${it.id}`) }, icon('share'), '공유'),
       el('span', { class: 'grow' }), el('a', { class: 'btn ghost', href: me ? `#/report/${it.id}` : '#/login' }, '🚩 신고'));
   }
@@ -1802,11 +1894,18 @@ async function renderMe() {
     const { error } = await sb.from('profiles').update({ nickname: nick.value.trim() || '브릭러', region: region.value.trim() }).eq('id', me.id);
     st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
   };
+  // 찜한 상품 (likes 표가 아직 없으면 조용히 빈 목록)
+  const { data: liked } = await sb.from('likes').select('created_at, listings(*)').order('created_at', { ascending: false });
+  const likedItems = (liked || []).map(r => r.listings).filter(Boolean);
   show(form, el('section', { class: 'panel' }, el('h2', {}, `내 판매 상품 ${mine.length}개`),
     mine.length ? el('div', { class: 'grid' }, mine.map(it => el('a', { class: 'card' + (it.status === 'sold' ? ' sold' : ''), href: `#/item/${it.id}` },
       el('div', { class: 'thumb' }, thumb(it), el('span', { class: 'flag' }, STATUS[it.status])),
       el('div', { class: 'body' }, el('div', { class: 'name' }, it.name), el('div', { class: 'price' }, won(it.price))))))
-      : el('div', { class: 'empty' }, '아직 올린 상품이 없어요.', el('a', { class: 'btn primary', href: '#/sell' }, '+ 판매 등록하기'))));
+      : el('div', { class: 'empty' }, '아직 올린 상품이 없어요.', el('a', { class: 'btn primary', href: '#/sell' }, '+ 판매 등록하기'))),
+    el('section', { class: 'panel', id: 'liked' }, el('h2', {}, `♥ 찜한 상품 ${likedItems.length}개`),
+      likedItems.length ? el('div', { class: 'grid' }, likedItems.map(listingCard))
+        : el('div', { class: 'empty' }, '마음에 드는 상품 사진의 ♡를 누르면 여기 모여요.')));
+  fillLikeCounts(likedItems.map(it => it.id));
 }
 
 // ---- 채팅 목록 --------------------------------------------------------------
@@ -1822,13 +1921,17 @@ async function renderChats() {
   const otherIds = [...new Set([...rooms.values()].map(m => { const l = byId.get(m.listing_id); return l && l.seller_id === me.id ? m.buyer_id : l?.seller_id; }).filter(Boolean))];
   const { data: ps } = otherIds.length ? await sb.from('profiles').select('id, nickname').in('id', otherIds) : { data: [] };
   const nick = new Map((ps || []).map(p => [p.id, p.nickname]));
+  const seen = seenMap();
+  unread = new Set([...rooms].filter(([k, m]) => isNewer(m, seen[k])).map(([k]) => k));
+  paintUnread();
   const rows = [...rooms.entries()].map(([k, m]) => {
     const l = byId.get(m.listing_id);
     if (!l) return null;
     const other = l.seller_id === me.id ? m.buyer_id : l.seller_id;
-    return el('a', { class: 'room', href: `#/chat/${k}` }, el('div', { class: 't' }, thumb(l)),
+    const isNew = unread.has(k);
+    return el('a', { class: 'room' + (isNew ? ' new' : ''), href: `#/chat/${k}` }, el('div', { class: 't' }, thumb(l)),
       el('div', { style: 'min-width:0' }, el('b', {}, `${nick.get(other) || '상대방'} · ${l.name}`), el('div', { class: 'last' }, (m.sender_id === me.id ? '나: ' : '') + m.body)),
-      el('span', { class: 'small' }, new Date(m.created_at).toLocaleDateString('ko-KR')));
+      el('span', { class: 'when' }, el('span', { class: 'small' }, new Date(m.created_at).toLocaleDateString('ko-KR')), isNew ? el('span', { class: 'newdot', 'aria-label': '안 읽음' }) : ''));
   }).filter(Boolean);
   show(el('section', { class: 'panel' }, el('h2', {}, '채팅'),
     rows.length ? el('div', { class: 'rooms' }, rows) : el('div', { class: 'empty' }, '아직 채팅이 없어요. 마음에 드는 상품에서 "판매자에게 채팅"을 눌러 보세요.')));
@@ -1885,6 +1988,7 @@ async function renderChat(listingId, buyerId) {
   const { data: msgs, error: e2 } = await sb.from('messages').select('*').eq('listing_id', l.id).eq('buyer_id', buyerId).order('created_at');
   if (e2) throw e2;
   msgs.forEach(add);
+  markSeen(`${l.id}/${buyerId}`);   // 이 방은 읽음
   if (!msgs.length) box.append(el('div', { class: 'hint' }, '첫 메시지를 보내 보세요. 예: "아직 판매 중인가요?"'));
   channel = sb.channel(`room-${l.id}-${buyerId}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `listing_id=eq.${l.id}` }, ({ new: m }) => { if (m.buyer_id === buyerId) add(m); })
@@ -2006,9 +2110,10 @@ async function renderReport(listingId) {
       const was = me?.id;
       me = session?.user || null;
       renderNav();
-      if (was !== me?.id) route();
+      if (was !== me?.id) { route(); checkUnread(); watchInbox(); loadLikes(); }
     });
   }
   renderNav();
   route();
+  checkUnread(); watchInbox(); loadLikes();
 })();

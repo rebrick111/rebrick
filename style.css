@@ -562,6 +562,39 @@ label.f.wide { grid-column: 1 / -1; }
          box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .toast.err { background: var(--red); color: #fff; }
 
+/* 찜 ♡: 사진 위 동그란 하트(번개장터처럼), 상품 화면은 글자 버튼. 찜하면 빨간 하트로 채움 */
+.thumb .like { position: absolute; right: 8px; top: 8px; z-index: 2; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%;
+               display: grid; place-items: center; background: rgba(17, 24, 39, .28); color: #fff; cursor: pointer;
+               -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: transform .12s; }
+.thumb .like:active { transform: scale(.85); }
+.like svg { width: 20px; height: 20px; }
+.like.on { color: #ff3b57; }
+.thumb .like.on { background: rgba(255, 255, 255, .92); }
+.like.on svg path { fill: currentColor; }
+.like.big { display: inline-flex; align-items: center; gap: 6px; }
+.like.big.on { color: #ff3b57; border-color: color-mix(in srgb, #ff3b57 40%, var(--line)); }
+.meta .likes:not(:empty) { margin-left: 6px; color: #ff3b57; font-weight: 600; }
+/* 안 읽은 채팅: 빨간 숫자 (탭 바·머리띠), 채팅 목록은 굵게 + 점 */
+.badge { min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800;
+         display: inline-grid; place-items: center; line-height: 1; box-shadow: 0 0 0 2px var(--bg); }
+.nav .btn.icon { position: relative; }
+.nav .btn.icon .badge { position: absolute; top: 2px; right: 0; margin: 0; }
+.room .when { display: grid; justify-items: end; gap: 6px; }
+.room.new b { font-weight: 800; }
+.room.new .last { color: var(--fg); font-weight: 600; }
+.newdot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
+/* 휴대폰 검색 결과 3열: 사진 크게·글자 작게, 상태 딱지·정가 비교는 숨김 */
+@media (max-width: 560px) {
+  .grid.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 8px; }
+  .grid.g3 .thumb { border-radius: 10px; }
+  .grid.g3 .thumb .like { width: 28px; height: 28px; right: 5px; top: 5px; }
+  .grid.g3 .like svg { width: 16px; height: 16px; }
+  .grid.g3 .card .body .price { font-size: 14px; }
+  .grid.g3 .card .body .name { font-size: 12.5px; }
+  .grid.g3 .card .body .meta { font-size: 11px; }
+  .grid.g3 .tags, .grid.g3 .vs, .grid.g3 .thumb .flag { display: none; }
+}
+
 /* 휴대폰 아래 탭 바 — 당근(5탭·글자+선 아이콘)·번개(가운데 등록 버튼 강조)를 섞음. 반투명 흰 바탕 + 흐림, 지금 탭만 진하게 */
 .tabbar { display: none; }
 @media (max-width: 720px) {
@@ -569,7 +602,8 @@ label.f.wide { grid-column: 1 / -1; }
             padding: 6px max(6px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-right, 0px));
             background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6);
             border-top: 1px solid var(--line); }
-  .tabbar .tab { display: grid; justify-items: center; gap: 2px; padding: 4px 0 2px; color: var(--faint); font-size: 11px; font-weight: 600;
+  .tabbar .tab .badge { position: absolute; top: 0; left: 50%; margin-left: 5px; }
+  .tabbar .tab { position: relative; display: grid; justify-items: center; gap: 2px; padding: 4px 0 2px; color: var(--faint); font-size: 11px; font-weight: 600;
                  letter-spacing: -.02em; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .tabbar .tab svg { width: 25px; height: 25px; transition: transform .15s; }
   .tabbar .tab svg path { stroke-width: 1.8; }
