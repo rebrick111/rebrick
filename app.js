@@ -322,6 +322,8 @@ function markMenu() {
     links.forEach(a => a === best ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   }
 }
+// 휴대폰은 검색칸이 좁아서 안내 글을 짧게
+if (matchMedia('(max-width: 720px)').matches) document.getElementById('q').placeholder = '번호·이름 검색';
 let qTimer;
 document.getElementById('q').oninput = e => {
   clearTimeout(qTimer);
