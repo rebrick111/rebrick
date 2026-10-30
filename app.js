@@ -675,31 +675,56 @@ async function reviewBox(l, targetId, targetNick) {
     el('div', { class: 'bar' }, el('span', { class: 'small' }, '후기는 상대 프로필에 모두에게 보여요.'), el('span', { class: 'grow' }), send));
   return wrap;
 }
-// 사용자 화면: 받은 후기·신뢰 점수·판매 중인 상품
-async function renderUser(uid) {
+// 프로필 공통: 닉네임 첫 글자 동그라미 (닉네임마다 색이 조금씩 다름) · 신뢰 막대 (👍 비율을 브릭 5칸으로)
+const nickHue = n => [...String(n || '?')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+const avatarEl = (nick, size = '') => el('div', { class: 'avatar ' + size, style: `--h:${nickHue(nick)}`, 'aria-hidden': 'true' }, String(nick || '?').slice(0, 1));
+function trustMeter(s) {
+  const fill = s.pct == null ? 0 : Math.round(s.pct / 20);   // 0~5칸
+  return el('div', { class: 'trust-m' },
+    el('div', { class: 'trust-top' }, el('b', {}, '브릭 신뢰도'), el('span', { class: 'small' }, s.n ? `👍 ${s.pct}% · 후기 ${s.n}개` : '아직 후기가 없어요')),
+    el('div', { class: 'bricks', role: 'img', 'aria-label': s.n ? `좋았어요 ${s.pct}%` : '후기 없음' }, [0, 1, 2, 3, 4].map(i => el('i', { class: i < fill ? 'on' : '' }))));
+}
+// 상점 화면 (번개장터 '내 상점'처럼): 색 띠 + 큰 동그라미 → 통계 줄 → 신뢰도·후기 태그 → [판매 상품 | 거래 후기] 탭
+async function renderUser(uid, tab = 'items') {
   const [{ data: p }, s, { data: items }, { data: revs }] = await Promise.all([
     sb.from('profiles').select('nickname, region, created_at').eq('id', uid).maybeSingle(),
     reviewSummary(uid),
-    sb.from('listings').select('*').eq('seller_id', uid).order('created_at', { ascending: false }).limit(40),
+    sb.from('listings').select('*').eq('seller_id', uid).order('created_at', { ascending: false }).limit(60),
     sb.from('reviews').select('*').eq('target_id', uid).order('created_at', { ascending: false }).limit(30)]);
   if (!p) return show(el('section', { class: 'panel' }, el('h2', {}, '없는 사용자예요')));
   const { data: rp } = revs?.length ? await sb.from('profiles').select('id, nickname').in('id', [...new Set(revs.map(r => r.reviewer_id))]) : { data: [] };
   const rnick = new Map((rp || []).map(x => [x.id, x.nickname]));
-  const selling = (items || []).filter(x => x.status !== 'sold'), soldN = (items || []).length - selling.length;
-  const tile = (t, v, sub) => el('div', { class: 'pbox' }, el('b', {}, t), el('div', { class: 'pv' }, v), sub ? el('div', { class: 'small' }, sub) : '');
-  show(el('section', { class: 'panel' },
-      el('div', { class: 'seller', style: 'border:0;padding:0' }, el('div', { class: 'avatar', 'aria-hidden': 'true' }, (p.nickname || '?').slice(0, 1)),
-        el('div', {}, el('h2', { style: 'margin:0' }, p.nickname), el('div', { class: 'small' }, [p.region, `가입 ${daysSince(p.created_at) + 1}일째`, `판매완료 ${soldN}개`].filter(Boolean).join(' · ')))),
-      el('div', { class: 'pboxes' }, tile('받은 후기', `${s.n}개`), tile('👍 좋았어요', s.pct == null ? '-' : `${s.pct}%`, s.n ? `${s.good} / ${s.n}명` : ''), tile('😍 최고예요', `${s.best}개`)),
-      s.tags.length ? el('div', { class: 'filters' }, s.tags.slice(0, 6).map(([t, n]) => el('span', { class: 'check on' }, `${t} ×${n}`))) : '',
-      el('h3', {}, '받은 거래 후기'),
-      revs?.length ? el('div', { class: 'rvlist' }, revs.map(r => el('div', { class: 'rv' },
-          el('div', { class: 'bar' }, el('b', {}, `${RATING[r.rating][0]} ${RATING[r.rating][1]}`), el('span', { class: 'small' }, `${rnick.get(r.reviewer_id) || '거래 상대'} · ${ago(r.created_at)}`)),
-          r.tags?.length ? el('div', { class: 'small' }, r.tags.join(' · ')) : '', r.body ? el('div', {}, r.body) : '')))
-        : el('div', { class: 'hint' }, '아직 받은 후기가 없어요.')),
-    el('section', { class: 'panel' }, el('h2', {}, `판매 중 ${selling.length}개`),
-      selling.length ? el('div', { class: 'grid' }, selling.map(listingCard)) : el('div', { class: 'empty' }, '지금 판매 중인 상품이 없어요.')));
-  fillLikeCounts(selling.map(it => it.id));
+  const all = items || [], selling = all.filter(x => x.status !== 'sold'), sold = all.filter(x => x.status === 'sold');
+  const mine = me && me.id === uid;
+  const body = el('div', {});
+  const tabs = el('div', { class: 'seg seg3', role: 'tablist' });
+  const draw = t => {
+    tab = t;
+    tabs.replaceChildren(...[['items', `판매 중 ${selling.length}`], ['sold', `판매완료 ${sold.length}`], ['reviews', `거래 후기 ${s.n}`]].map(([k, label]) =>
+      el('button', { type: 'button', class: 'seg-b', role: 'tab', 'aria-selected': String(t === k), 'aria-pressed': String(t === k), onclick: () => draw(k) }, label)));
+    const list = t === 'items' ? selling : sold;
+    body.replaceChildren(t === 'reviews'
+      ? (revs?.length ? el('div', { class: 'rvlist' }, revs.map(r => el('div', { class: 'rv' },
+          el('div', { class: 'rv-head' }, avatarEl(rnick.get(r.reviewer_id), 'sm'), el('b', {}, rnick.get(r.reviewer_id) || '거래 상대'), el('span', { class: 'small' }, ago(r.created_at)),
+            el('span', { class: 'rv-rate r' + r.rating }, `${RATING[r.rating][0]} ${RATING[r.rating][1]}`)),
+          r.tags?.length ? el('div', { class: 'rv-tags' }, r.tags.map(x => el('span', {}, x))) : '', r.body ? el('div', { class: 'rv-body' }, r.body) : '')))
+        : el('div', { class: 'empty' }, '아직 받은 거래 후기가 없어요.'))
+      : (list.length ? el('div', { class: 'grid' }, list.map(listingCard)) : el('div', { class: 'empty' }, t === 'items' ? '지금 판매 중인 상품이 없어요.' : '아직 판매완료된 상품이 없어요.')));
+    if (t !== 'reviews') fillLikeCounts(list.map(it => it.id));
+  };
+  const stat = (n, label, t) => el('button', { type: 'button', class: 'stat-b', onclick: () => t && draw(t) }, el('b', {}, n), el('span', {}, label));
+  show(el('section', { class: 'panel shop' },
+      el('div', { class: 'shop-cover', style: `--h:${nickHue(p.nickname)}` }),
+      el('div', { class: 'shop-head' }, avatarEl(p.nickname, 'xl'),
+        el('div', { class: 'shop-name' }, el('h2', {}, p.nickname, daysSince(p.created_at) < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
+          el('div', { class: 'small' }, [p.region || '지역 미정', `가입 ${daysSince(p.created_at) + 1}일째`].join(' · '))),
+        mine ? el('a', { class: 'btn', href: '#/me/settings' }, '⚙️ 프로필 수정')
+          : el('button', { type: 'button', onclick: () => shareLink(`${p.nickname}님의 상점 | 리브릭`, `${location.origin}${location.pathname}#/user/${uid}`) }, icon('share'), '공유')),
+      el('div', { class: 'stats4' }, stat(selling.length, '판매 중', 'items'), stat(sold.length, '판매완료', 'sold'), stat(s.n, '거래 후기', 'reviews'), stat(s.pct == null ? '-' : `${s.pct}%`, '👍 좋았어요', 'reviews')),
+      trustMeter(s),
+      s.tags.length ? el('div', { class: 'rv-tags big' }, s.tags.slice(0, 6).map(([t, n]) => el('span', {}, `${t} `, el('b', {}, n)))) : ''),
+    el('section', { class: 'panel' }, tabs, body));
+  draw(tab);
 }
 
 // ---- 📈 실거래가 그래프 (2026-10-30) -------------------------------------------------
@@ -839,14 +864,15 @@ async function route() {
   markTabbar();
   paintNickBanner();
   try {
-    if (page === 'nickname') return renderNickSetup(a ? decodeURIComponent(a) : '#/');
+    // 처음 닉네임 정하기(임시 닉네임일 때)만 바로, 이미 정한 사람이 바꾸는 건 계정 설정(비밀번호 확인)에서
+    if (page === 'nickname') return me && !needNick ? (location.hash = '#/me/settings') : renderNickSetup(a ? decodeURIComponent(a) : '#/');
     // 임시 닉네임이면 판매·채팅 전에 먼저 닉네임부터
     if (me && needNick && NICK_PAGES.includes(page)) return renderNickSetup(location.hash);
     if (page === 'item' && a) return await renderItem(+a);
     if (page === 'sell') return await renderForm(null, a ? decodeURIComponent(a) : '');
     if (page === 'edit' && a) return await renderForm(+a);
     if (page === 'login') return renderLogin();
-    if (page === 'me') return await renderMe();
+    if (page === 'me') return a === 'settings' ? await renderSettings() : await renderMe();
     if (page === 'chats') return await renderChats();
     if (page === 'chat' && a && b) return await renderChat(+a, b);
     if (page === 'safety') return renderSafety();
@@ -2401,31 +2427,90 @@ async function renderMe() {
     sb.from('listings').select('*').eq('seller_id', me.id).order('created_at', { ascending: false }),
   ]);
   if (error) throw error;
+  // 찜한 상품 · 신뢰도 · 내 신고 (update_6 전이면 조용히 빈 값)
+  const [{ data: liked }, trust, { data: reps }] = await Promise.all([
+    sb.from('likes').select('created_at, listings(*)').order('created_at', { ascending: false }),
+    reviewSummary(me.id),
+    sb.from('reports').select('*').order('created_at', { ascending: false }).limit(20)]);
+  const likedItems = (liked || []).map(r => r.listings).filter(Boolean);
+  const selling = mine.filter(x => x.status !== 'sold'), sold = mine.filter(x => x.status === 'sold');
+  const REPORT_ST = { received: '접수됨', reviewing: '검토 중', done: '처리 완료' };
+  const nick = prof?.nickname || '';
+
+  // 내 상품·찜: 탭 하나씩 (길게 늘어놓지 않게)
+  const body = el('div', {});
+  const tabs = el('div', { class: 'seg seg3', role: 'tablist' });
+  const draw = t => {
+    tabs.replaceChildren(...[['selling', `판매 중 ${selling.length}`], ['sold', `판매완료 ${sold.length}`], ['liked', `찜 ${likedItems.length}`]].map(([k, label]) =>
+      el('button', { type: 'button', class: 'seg-b', role: 'tab', 'aria-selected': String(t === k), 'aria-pressed': String(t === k), onclick: () => draw(k) }, label)));
+    const list = t === 'selling' ? selling : t === 'sold' ? sold : likedItems;
+    body.replaceChildren(list.length ? el('div', { class: 'grid' }, list.map(listingCard))
+      : el('div', { class: 'empty' }, t === 'liked' ? '마음에 드는 상품 사진의 ♡를 누르면 여기 모여요.' : t === 'sold' ? '아직 판매완료된 상품이 없어요.' : '지금 판매 중인 상품이 없어요.',
+          t === 'selling' ? el('a', { class: 'btn primary', href: '#/sell' }, '+ 판매 등록하기') : ''));
+    fillLikeCounts(list.map(it => it.id));
+  };
+  const stat = (n, label, onclick) => el('button', { type: 'button', class: 'stat-b', onclick }, el('b', {}, n), el('span', {}, label));
+  // 메뉴 한 줄: 아이콘 · 이름 · 오른쪽 작은 글 · ›
+  const row = (ic, label, right, href, cls = '') => el(href ? 'a' : 'button', { class: 'mrow ' + cls, ...(href ? { href } : { type: 'button' }) },
+    el('span', { class: 'mic', 'aria-hidden': 'true' }, ic), el('span', { class: 'ml' }, label), el('span', { class: 'mr small' }, right || ''), el('span', { class: 'chev', 'aria-hidden': 'true' }, '›'));
+  const unreadN = notifs.filter(n => !n.read).length;
+  const repBox = el('div', { class: 'replist', hidden: true }, (reps || []).map(r => el('div', { class: 'small' }, `${new Date(r.created_at).toLocaleDateString('ko-KR')} · `,
+    r.listing_id ? el('a', { href: `#/item/${r.listing_id}` }, `상품 #${r.listing_id}`) : '삭제된 상품', ` · ${REPORT_ST[r.status] || '접수됨'}`, r.result ? ` — ${r.result}` : '')));
+  const repRow = row('🚩', '내 신고', reps?.length ? `${reps.length}건 · ${REPORT_ST[reps[0].status] || '접수됨'}` : '없음');
+  repRow.onclick = () => { if (reps?.length) repBox.hidden = !repBox.hidden; };
+  const logout = row('↩', '로그아웃', '', null, 'danger');
+  logout.onclick = async () => { await sb.auth.signOut(); location.hash = '#/'; };
+
+  show(
+    // 1) 프로필 카드 (당근 '나의 당근'처럼 맨 위)
+    el('section', { class: 'panel myhead' },
+      el('a', { class: 'myhead-top', href: `#/user/${me.id}` }, avatarEl(nick, 'lg'),
+        el('div', { class: 'shop-name' }, el('h2', {}, nick || '닉네임 없음'), el('div', { class: 'small' }, [prof?.region || '지역 미정', `가입 ${daysSince(prof?.created_at || Date.now()) + 1}일째`].join(' · '))),
+        el('span', { class: 'small more-link' }, '내 상점 ›')),
+      isDefaultNick(nick) ? el('a', { class: 'nickbanner', href: '#/nickname', style: 'margin:0' }, el('span', {}, '👋 임시 닉네임이에요. 나만의 닉네임을 정해 주세요'), el('b', {}, '정하기 →')) : '',
+      trustMeter(trust),
+      el('div', { class: 'stats4' }, stat(selling.length, '판매 중', () => draw('selling')), stat(sold.length, '판매완료', () => draw('sold')),
+        stat(likedItems.length, '찜', () => draw('liked')), stat(saved.size, '즐겨찾기', () => { location.hash = '#/alerts/star'; }))),
+    // 2) 내 상품·찜
+    el('section', { class: 'panel' }, tabs, body),
+    // 3) 메뉴 목록
+    el('section', { class: 'panel mlist' },
+      el('h3', {}, '나의 거래'),
+      row('🔔', '알림', unreadN ? `새 알림 ${unreadN}` : '', '#/alerts'),
+      row('⭐', '키워드 즐겨찾기', saved.size ? `${saved.size}개` : '', '#/alerts/star'),
+      row('💬', '채팅', unread.size ? `안 읽음 ${unread.size}` : '', '#/chats'),
+      row('🗂️', '내 컬렉션', '가진 세트·시세', '#/collection'),
+      repRow, repBox,
+      el('h3', {}, '설정'),
+      row('⚙️', '계정 설정', '🔒 닉네임·지역·비밀번호', '#/me/settings'),
+      row('💡', '판매 꿀팁', '', '#/sellguide'),
+      row('🛡️', '안전거래·사기 예방', '', '#/safety'),
+      logout));
+  draw('selling');
+}
+
+// ---- 계정 설정 (2026-10-30): 비밀번호를 한 번 더 확인해야 들어감 ----------------------
+// 확인하면 10분 동안 열림 (휴대폰을 잠깐 남이 만져도 닉네임·비밀번호를 못 바꾸게)
+// 비밀번호가 없는 옛 계정(인증번호로만 가입)은 메일 인증번호로 확인
+let reauthUntil = 0, reauthFails = 0, reauthLockUntil = 0;
+async function renderSettings() {
+  if (!me) return needLogin();
+  if (Date.now() > reauthUntil) return renderReauth();
+  const { data: prof } = await sb.from('profiles').select('*').eq('id', me.id).maybeSingle();
+  const { form: nickForm } = nickField(prof?.nickname || '');
   const region = el('input', { id: 'meRegion', maxlength: 30, placeholder: '예: 울산 동구', value: prof?.region || '' });
   const st = status();
-  // 닉네임은 따로 (쓸 수 있는지 바로 확인, 겹치면 DB가 거절)
-  const { form: nickForm } = nickField(prof?.nickname || '');
-  const form = el('section', { class: 'panel' }, el('h2', {}, '내 정보'), el('div', { class: 'small' }, me.email),
-    isDefaultNick(prof?.nickname) ? el('div', { class: 'risk', role: 'note' }, `👋 지금은 임시 닉네임(${prof?.nickname})이에요. 나만의 닉네임을 정해 주세요.`) : '',
-    nickForm,
-    (() => {
-      const f = el('form', { class: 'fields' }, el('label', { class: 'f' }, '기본 거래 지역', region),
-        el('div', { class: 'f', style: 'align-self:end' }, el('div', { class: 'bar' }, el('button', { type: 'submit' }, '지역 저장'), st)));
-      f.onsubmit = async e => {
-        e.preventDefault();
-        const { error } = await sb.from('profiles').update({ region: region.value.trim() }).eq('id', me.id);
-        st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
-      };
-      return f;
-    })(),
-    el('div', { class: 'bar' }, el('span', { class: 'grow' }),
-      el('button', { type: 'button', class: 'ghost', onclick: async () => { await sb.auth.signOut(); location.hash = '#/'; } }, '로그아웃')));
-  // 비밀번호 정하기·바꾸기 (예전에 인증번호로만 가입한 사람도 여기서 정하면 다음부터 이메일+비밀번호로 로그인)
+  const regionForm = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '기본 거래 지역', region), el('div', { class: 'bar' }, el('button', { type: 'submit' }, '지역 저장'), st));
+  regionForm.onsubmit = async e => {
+    e.preventDefault();
+    const { error } = await sb.from('profiles').update({ region: region.value.trim() }).eq('id', me.id);
+    st.className = 'status' + (error ? ' err' : ''); st.textContent = error ? errMsg(error) : '저장했어요.';
+  };
   const np = el('input', { type: 'password', minlength: 6, placeholder: '6자 이상', autocomplete: 'new-password' });
   const np2 = el('input', { type: 'password', placeholder: '한 번 더 입력', autocomplete: 'new-password' });
   const pst = status();
-  const pwForm = el('form', { class: 'fields pwform' }, el('label', { class: 'f' }, '새 비밀번호', np), el('label', { class: 'f' }, '비밀번호 확인', np2),
-    el('div', { class: 'bar' }, el('button', { type: 'submit' }, '비밀번호 정하기'), pst));
+  const pwForm = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '새 비밀번호', np), el('label', { class: 'f' }, '새 비밀번호 확인', np2),
+    el('div', { class: 'bar' }, el('button', { type: 'submit' }, '비밀번호 바꾸기'), pst));
   pwForm.onsubmit = async e => {
     e.preventDefault();
     const bad = np.value.length < 6 ? '비밀번호는 6자 이상으로 정해 주세요.' : np.value !== np2.value ? '비밀번호 두 개가 서로 달라요.' : '';
@@ -2434,31 +2519,67 @@ async function renderMe() {
     const { error } = await sb.auth.updateUser({ password: np.value });
     pst.className = 'status' + (error ? ' err' : '');
     pst.textContent = error ? (/different from the old/i.test(error.message) ? '지금 비밀번호와 같아요.' : /password/i.test(error.message) ? '비밀번호가 너무 쉬워요. 더 길게 정해 주세요.' : errMsg(error))
-      : '비밀번호를 정했어요. 다음부터 이메일과 이 비밀번호로 로그인하면 돼요.';
+      : '비밀번호를 바꿨어요. 다음부터 새 비밀번호로 로그인하세요.';
     if (!error) { np.value = ''; np2.value = ''; }
   };
-  const pwPanel = el('section', { class: 'panel' }, el('h2', {}, '비밀번호'), el('p', { class: 'small' }, `로그인 아이디는 이메일(${me.email})이에요.`), pwForm);
-  // 찜한 상품 (likes 표가 아직 없으면 조용히 빈 목록)
-  const { data: liked } = await sb.from('likes').select('created_at, listings(*)').order('created_at', { ascending: false });
-  const likedItems = (liked || []).map(r => r.listings).filter(Boolean);
-  // 내 신뢰 점수 · 알림·즐겨찾기 바로가기 · 내 신고 처리 상태 (update_6 전이면 조용히 빈 값)
-  const [trust, { data: reps }] = await Promise.all([reviewSummary(me.id), sb.from('reports').select('*').order('created_at', { ascending: false }).limit(20)]);
-  const REPORT_ST = { received: '접수됨', reviewing: '검토 중', done: '처리 완료' };
-  const quick = el('section', { class: 'panel' },
-    el('div', { class: 'bar' }, el('b', {}, '📝 ' + trustText(trust)), el('a', { class: 'small', href: `#/user/${me.id}` }, '내 프로필·후기 보기 →'), el('span', { class: 'grow' }),
-      el('a', { class: 'btn', href: '#/alerts' }, '🔔 알림'), el('a', { class: 'btn', href: '#/alerts/star' }, `⭐ 즐겨찾기 ${saved.size}`)),
-    reps?.length ? el('details', { class: 'checklist' }, el('summary', {}, `🚩 내 신고 ${reps.length}건`),
-      el('ul', {}, reps.map(r => el('li', {}, `${new Date(r.created_at).toLocaleDateString('ko-KR')} · `, r.listing_id ? el('a', { href: `#/item/${r.listing_id}` }, `상품 #${r.listing_id}`) : '삭제된 상품',
-        ` · ${REPORT_ST[r.status] || '접수됨'}`, r.result ? ` — ${r.result}` : '')))) : '');
-  show(form, quick, el('section', { class: 'panel' }, el('h2', {}, `내 판매 상품 ${mine.length}개`),
-    mine.length ? el('div', { class: 'grid' }, mine.map(it => el('a', { class: 'card' + (it.status === 'sold' ? ' sold' : ''), href: `#/item/${it.id}` },
-      el('div', { class: 'thumb' }, thumb(it), el('span', { class: 'flag' }, STATUS[it.status])),
-      el('div', { class: 'body' }, el('div', { class: 'name' }, it.name), el('div', { class: 'price' }, won(it.price))))))
-      : el('div', { class: 'empty' }, '아직 올린 상품이 없어요.', el('a', { class: 'btn primary', href: '#/sell' }, '+ 판매 등록하기'))),
-    el('section', { class: 'panel', id: 'liked' }, el('h2', {}, `♥ 찜한 상품 ${likedItems.length}개`),
-      likedItems.length ? el('div', { class: 'grid' }, likedItems.map(listingCard))
-        : el('div', { class: 'empty' }, '마음에 드는 상품 사진의 ♡를 누르면 여기 모여요.')), pwPanel);
-  fillLikeCounts(likedItems.map(it => it.id));
+  const left = Math.max(1, Math.round((reauthUntil - Date.now()) / 60000));
+  const lock = el('button', { type: 'button', class: 'ghost' }, '🔒 지금 잠그기');
+  lock.onclick = () => { reauthUntil = 0; location.hash = '#/me'; };
+  show(el('section', { class: 'panel settings' },
+    el('div', { class: 'bar' }, el('a', { class: 'small', href: '#/me' }, '‹ 나의 리브릭'), el('span', { class: 'grow' }), el('span', { class: 'small' }, `🔓 확인됨 · ${left}분 뒤 다시 잠겨요`), lock),
+    el('h2', {}, '⚙️ 계정 설정'),
+    el('div', { class: 'set-sec' }, el('h3', {}, '닉네임'), nickForm),
+    el('div', { class: 'set-sec' }, el('h3', {}, '거래 지역'), regionForm),
+    el('div', { class: 'set-sec' }, el('h3', {}, '비밀번호'), el('p', { class: 'small' }, `로그인 아이디는 이메일(${me.email})이에요.`), pwForm)));
+}
+function renderReauth() {
+  const pw = el('input', { type: 'password', id: 'reauthPw', autocomplete: 'current-password', placeholder: '지금 비밀번호', 'aria-label': '지금 비밀번호' });
+  const st = status();
+  const btn = el('button', { type: 'submit', class: 'primary' }, '확인');
+  const unlock = () => { reauthUntil = Date.now() + 10 * 60000; reauthFails = 0; toast('확인됐어요. 10분 동안 계정 설정을 바꿀 수 있어요.'); renderSettings(); };
+  const form = el('form', { class: 'nickform' }, el('label', { class: 'f' }, '비밀번호', pw), el('div', { class: 'bar' }, btn), st);
+  form.onsubmit = async e => {
+    e.preventDefault();
+    if (Date.now() < reauthLockUntil) { st.className = 'status err'; st.textContent = `여러 번 틀려서 잠깐 잠겼어요. ${Math.ceil((reauthLockUntil - Date.now()) / 1000)}초 뒤에 다시 해 주세요.`; return; }
+    if (!pw.value) return pw.focus();
+    btn.disabled = true; st.className = 'status'; st.textContent = '확인하는 중…';
+    const { error } = await sb.auth.signInWithPassword({ email: me.email, password: pw.value });   // 같은 계정으로 다시 로그인 = 본인 확인
+    btn.disabled = false;
+    if (!error) return unlock();
+    if (++reauthFails >= 5) { reauthLockUntil = Date.now() + 60000; reauthFails = 0; }
+    st.className = 'status err';
+    st.textContent = /invalid login/i.test(error.message) ? '비밀번호가 맞지 않아요. 비밀번호가 없는 계정이면 아래 메일 인증번호로 확인해 주세요.' : errMsg(error);
+    pw.select();
+  };
+  // 비밀번호가 없거나 잊었을 때: 메일 인증번호
+  const code = el('input', { inputmode: 'numeric', maxlength: 10, placeholder: '메일로 받은 인증번호', autocomplete: 'one-time-code', 'aria-label': '인증번호' });
+  const cst = status();
+  const codeForm = el('form', { class: 'nickform', hidden: true }, el('label', { class: 'f' }, '인증번호', code), el('div', { class: 'bar' }, el('button', { type: 'submit', class: 'primary' }, '인증번호 확인')), cst);
+  codeForm.onsubmit = async e => {
+    e.preventDefault();
+    const token = code.value.replace(/\D/g, '');
+    if (!token) return code.focus();
+    cst.className = 'status'; cst.textContent = '확인하는 중…';
+    const { error } = await sb.auth.verifyOtp({ email: me.email, token, type: 'email' });
+    if (error) { cst.className = 'status err'; cst.textContent = '번호가 틀렸거나 시간이 지났어요. 메일을 새로 받아 주세요.'; return; }
+    unlock();
+  };
+  const sendBtn = el('button', { type: 'button', class: 'linkbtn' }, '비밀번호가 없거나 잊었어요 → 메일 인증번호로 확인');
+  sendBtn.onclick = async () => {
+    sendBtn.disabled = true;
+    const { error } = await sb.auth.signInWithOtp({ email: me.email, options: { shouldCreateUser: false } });
+    if (error) { sendBtn.disabled = false; toast(errMsg(error), true); return; }
+    codeForm.hidden = false; code.focus();
+    toast(`${me.email}(으)로 인증번호를 보냈어요.`);
+    setTimeout(() => { sendBtn.disabled = false; sendBtn.textContent = '인증번호 다시 받기'; }, 60000);
+  };
+  show(el('section', { class: 'panel login' },
+    el('a', { class: 'small', href: '#/me' }, '‹ 나의 리브릭'),
+    el('h2', {}, '🔒 본인 확인'),
+    el('p', {}, '닉네임·거래 지역·비밀번호를 바꾸려면 비밀번호를 한 번 더 입력해 주세요. 다른 사람이 내 휴대폰으로 정보를 바꾸지 못하게 하려는 거예요.'),
+    el('div', { class: 'small' }, `계정: ${me.email}`),
+    form, sendBtn, codeForm));
+  pw.focus();
 }
 
 // ---- 채팅 목록 --------------------------------------------------------------

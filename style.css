@@ -833,3 +833,67 @@ a.seg-b { text-align: center; text-decoration: none; }
 .nickform { display: grid; gap: 8px; max-width: 420px; }
 .nickmsg.ok { color: var(--ok); font-weight: 700; }
 .nickmsg.bad { color: var(--red); font-weight: 700; }
+/* ---- 2026-10-30: 나의 리브릭 · 상점 · 계정 설정 (당근 '나의 당근' + 번개 '내 상점' 참고) ---- */
+/* 동그라미: 닉네임마다 색이 조금씩 (--h), 크기 sm / lg / xl */
+.avatar { background: hsl(var(--h, 230) 85% 94%); color: hsl(var(--h, 230) 60% 38%); }
+:root[data-theme="dark"] .avatar { background: hsl(var(--h, 230) 35% 24%); color: hsl(var(--h, 230) 80% 80%); }
+.avatar.sm { width: 28px; height: 28px; font-size: 13px; }
+.avatar.lg { width: 60px; height: 60px; font-size: 24px; }
+.avatar.xl { width: 84px; height: 84px; font-size: 34px; box-shadow: 0 0 0 4px var(--surface); }
+.shop-name { min-width: 0; display: grid; gap: 2px; }
+.shop-name h2 { margin: 0; font-size: 21px; letter-spacing: -.03em; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+/* 상점: 위 색 띠 + 동그라미가 띠에 걸침 */
+.panel.shop { padding-top: 0; overflow: hidden; }
+.shop-cover { height: 92px; margin: 0 -22px; background: linear-gradient(120deg, hsl(var(--h) 80% 62%), var(--brand)); }
+.shop-head { display: flex; align-items: flex-end; gap: 14px; margin-top: -42px; flex-wrap: wrap; }
+.shop-head .shop-name { flex: 1; padding-bottom: 4px; }
+.shop-head > .btn, .shop-head > button { margin-bottom: 4px; }
+/* 숫자 4칸 (누르면 그 탭으로) */
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 14px; background: var(--surface-2); overflow: hidden; }
+.stat-b { display: grid; justify-items: center; gap: 2px; padding: 12px 4px; border: 0; border-radius: 0; background: none; color: var(--fg); cursor: pointer; }
+.stat-b + .stat-b { border-left: 1px solid var(--line); }
+.stat-b b { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.stat-b span { font-size: 12px; color: var(--muted); }
+.stat-b:hover { background: var(--surface-3); }
+/* 브릭 신뢰도: 레고 브릭 5칸 */
+.trust-m { display: grid; gap: 6px; }
+.trust-top { display: flex; align-items: baseline; gap: 8px; }
+.trust-top b { font-size: 14px; }
+.bricks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.bricks i { position: relative; height: 12px; border-radius: 3px; background: var(--surface-3); }
+.bricks i::before, .bricks i::after { content: ''; position: absolute; top: -4px; width: 22%; height: 5px; border-radius: 2px 2px 0 0; background: inherit; }
+.bricks i::before { left: 18%; } .bricks i::after { right: 18%; }
+.bricks i.on { background: var(--accent); }
+/* 후기 */
+.rv-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rv-rate { margin-left: auto; font-size: 13px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--surface-2); }
+.rv-rate.r2 { background: var(--ok-soft); color: var(--ok); } .rv-rate.r1 { background: var(--blue-soft); color: var(--blue); } .rv-rate.r-1 { background: var(--warn-soft); color: var(--warn); }
+.rv-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.rv-tags span { font-size: 12.5px; padding: 3px 10px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.rv-tags.big span { font-size: 13px; color: var(--fg); }
+.rv-tags.big b { color: var(--brand); margin-left: 2px; }
+.rv-body { line-height: 1.6; }
+/* 나의 리브릭 머리 */
+.myhead-top { display: flex; align-items: center; gap: 14px; color: var(--fg); text-decoration: none; }
+.myhead-top .shop-name { flex: 1; }
+.more-link { color: var(--muted); white-space: nowrap; }
+/* 메뉴 목록: 아이콘 · 이름 · 오른쪽 작은 글 · › */
+.mlist { gap: 0; padding-block: 10px; }
+.mlist h3 { margin: 14px 0 4px; font-size: 13px; color: var(--muted); font-weight: 700; }
+.mlist h3:first-child { margin-top: 4px; }
+.mrow { display: grid; grid-template-columns: 30px 1fr auto 14px; align-items: center; gap: 8px; width: 100%; padding: 13px 2px; border: 0; border-radius: 0; border-bottom: 1px solid var(--line);
+        background: none; color: var(--fg); font: inherit; font-size: 15px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
+.mrow:hover { background: var(--surface-2); }
+.mrow .mic { font-size: 18px; text-align: center; }
+.mrow .mr { color: var(--muted); font-weight: 500; text-align: right; }
+.mrow .chev { color: var(--faint); font-size: 18px; }
+.mrow.danger { color: var(--red); border-bottom: 0; }
+.replist { display: grid; gap: 4px; padding: 8px 4px 12px 40px; }
+/* 계정 설정 */
+.settings .set-sec { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.settings .set-sec h3 { margin: 0; font-size: 16px; }
+@media (max-width: 560px) {
+  .shop-cover { height: 76px; }
+  .avatar.xl { width: 72px; height: 72px; font-size: 28px; }
+  .stat-b b { font-size: 17px; }
+}
