@@ -593,6 +593,7 @@ label.f.wide { grid-column: 1 / -1; }
   .grid.g3 .card .body .name { font-size: 12.5px; }
   .grid.g3 .card .body .meta { font-size: 11px; }
   .grid.g3 .tags, .grid.g3 .vs, .grid.g3 .thumb .flag { display: none; }
+  .grid.g3 .catnote { right: 4px; bottom: 4px; font-size: 9px; padding: 1px 5px; border-radius: 5px; }
 }
 
 /* 휴대폰 아래 탭 바 — 당근(5탭·글자+선 아이콘)·번개(가운데 등록 버튼 강조)를 섞음. 반투명 흰 바탕 + 흐림, 지금 탭만 진하게 */
