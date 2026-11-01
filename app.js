@@ -578,7 +578,7 @@ async function renderAlerts(tab = 'list') {
       el('div', { class: 'hint' }, '세트번호·이름·테마를 즐겨찾기하면, 조건에 맞는 새 상품이 올라올 때 🔔 알림이 와요. 최고 가격·상태를 정해 두면 그 조건에 맞는 것만 알려 드려요.'),
       rows.length ? el('div', { class: 'srows' }, rows) : el('div', { class: 'empty' }, '아직 즐겨찾기가 없어요. 검색 결과·세트 화면·테마 화면의 ☆ 버튼을 눌러 보세요.')];
   } else {
-    const rows = notifs.map(n => el('a', { class: 'nrow' + (n.read ? '' : ' new'), href: n.link || '#/alerts' },
+    const rows = notifs.map(n => el('a', { class: 'alrow' + (n.read ? '' : ' new'), href: n.link || '#/alerts' },
       el('span', { class: 'nic', 'aria-hidden': 'true' }, NOTIF_ICON[n.kind] || '🔔'),
       el('span', { class: 'ntxt' }, el('b', {}, n.title), el('span', { class: 'small' }, n.body)), el('span', { class: 'small when' }, ago(n.created_at))));
     const clear = el('button', { type: 'button', class: 'ghost' }, '모두 지우기');
@@ -1106,6 +1106,9 @@ function newsTicker(items, show = 4, ms = 3500) {
     list.style.transform = `translateY(-${rows[i].offsetTop}px)`;
   };
   requestAnimationFrame(fit);
+  // 글꼴이 늦게 들어오거나 폭이 바뀌면 줄 높이가 달라짐 → 다시 재서 마지막 줄이 잘리지 않게
+  if (window.ResizeObserver) new ResizeObserver(() => fit()).observe(list);
+  document.fonts?.ready.then(fit);
   if (items.length <= show) return box;
   const s = hoverPause(box);
   const t = setInterval(() => {
@@ -1114,7 +1117,6 @@ function newsTicker(items, show = 4, ms = 3500) {
     i = (i + 1) % (items.length - show + 1);
     fit();
   }, ms);
-  addEventListener('resize', fit);
   return box;
 }
 

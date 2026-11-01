@@ -848,12 +848,13 @@ a.chip { text-decoration: none; display: inline-flex; align-items: center; }
 .seg.seg2 { grid-template-columns: repeat(2, 1fr); }
 a.seg-b { text-align: center; text-decoration: none; }
 .nrows, .srows { display: grid; }
-.nrow { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; }
-.nrow .nic { font-size: 22px; text-align: center; }
-.nrow .ntxt { display: grid; gap: 2px; min-width: 0; }
-.nrow .ntxt .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nrow.new { background: var(--brand-soft); border-radius: 10px; }
-.nrow .when { white-space: nowrap; }
+/* 알림 줄은 .alrow (뉴스 줄 .nrow와 이름이 겹쳐 뉴스 제목이 36px 칸에 갇혀 잘렸음 — 2026-11-02) */
+.alrow { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; }
+.alrow .nic { font-size: 22px; text-align: center; }
+.alrow .ntxt { display: grid; gap: 2px; min-width: 0; }
+.alrow .ntxt .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alrow.new { background: var(--brand-soft); border-radius: 10px; }
+.alrow .when { white-space: nowrap; }
 .srow { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .srow-k { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .srow-c { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
