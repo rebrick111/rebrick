@@ -27,7 +27,20 @@ const storeTheme = t => ({ '레고 아이콘': '아이콘즈', '크리에이터 
     msrp: +(list || price), store: { price: +price, avail, sale: +sale || 0, flags: (flags || '').split(' ').filter(Boolean) } };
 });
 // 역대 전 세트·미니피규어(allsets.js, Rebrickable 자료): 없는 번호는 새로 넣고, 있는 번호엔 영어 이름(검색용)·연도·피스만 보탬
-{
+// (2026-11-02 로딩 속도) 1.5MB라 첫 화면을 그린 뒤에 따로 받음 → loadAllSets(). 시세·테마 화면은 받을 때까지 기다림
+const VER = (document.currentScript?.src.match(/[?&]v=(\w+)/) || [])[1] || '';
+let allSetsP = null;
+function loadAllSets() {
+  if (window.BRICK_ALL_SETS != null) return Promise.resolve(true);
+  return allSetsP ||= new Promise(ok => {
+    const s = document.createElement('script');
+    s.src = 'allsets.js' + (VER ? '?v=' + VER : '');
+    s.onload = () => { mergeAllSets(); ok(true); };
+    s.onerror = () => { allSetsP = null; ok(false); };
+    document.body.append(s);
+  });
+}
+function mergeAllSets() {
   const T = window.BRICK_ALL_THEMES || [];
   const merge = (no, en, year, theme, pcs, rbf) => {
     const c = CATALOG[no];
@@ -42,6 +55,7 @@ const storeTheme = t => ({ '레고 아이콘': '아이콘즈', '크리에이터 
   (window.BRICK_ALL_FIGS || '').trim().split('\n').forEach(l => { const [id, en, p, f] = l.split('|'); if (id) merge(id, en, 0, '미니피규어', +p || 0, +f || 0); });
   // 명작 세트는 한글 이름으로 (영어 이름은 검색용 별명으로)
   Object.entries(window.BRICK_ICONIC_NAMES || {}).forEach(([no, ko]) => { const c = CATALOG[no]; if (c?.en) { c.alias = [c.alias, c.name].filter(Boolean).join(' '); c.name = ko; c.en = false; } });
+  RBMAP = Object.fromEntries(Object.entries(window.BRICK_RB_SETMAP || {}).map(([k, v]) => [k.toLowerCase(), v]));
 }
 const legoUrl = no => `https://www.lego.com/ko-kr/search?q=${encodeURIComponent(no)}`;
 // 판매 상태 → 짧은 표시
@@ -126,7 +140,7 @@ function vsMsrp(it) {
 }
 // 세트·미니피규어 공식 이미지 (Rebrickable 이미지 서버). 세트는 "번호-1", 미니피규어는 Rebrickable 번호, 행사 한정판은 번호 연결표
 const RB_IMG = 'https://cdn.rebrickable.com/media/sets/';
-const RBMAP = Object.fromEntries(Object.entries(window.BRICK_RB_SETMAP || {}).map(([k, v]) => [k.toLowerCase(), v]));
+let RBMAP = {};   // 행사 한정판 번호 연결표 — allsets.js를 받으면 mergeAllSets가 채움
 function imgOf(no) {
   no = String(no || '').trim();
   if (!no) return '';
@@ -137,7 +151,8 @@ function imgOf(no) {
   if (c?.rbf) return `${RB_IMG}fig-${String(c.rbf).padStart(6, '0')}.jpg`;
   if (RBMAP[full]) return RB_IMG + RBMAP[full] + '.jpg';
   // 공식몰 세트는 역대 목록에서 뺀 것(조립판 등)이나 새로 나온 것도 이미지가 있을 수 있어 일단 시도 (없으면 자리표시)
-  return (c?.rb || c?.store) && !isFig(no) ? RB_IMG + (/-\d+$/.test(no) ? no : no + '-1') + '.jpg' : '';
+  // 역대 목록(allsets.js)을 아직 안 받았어도 세트 번호면 일단 시도
+  return (c?.rb || c?.store || window.BRICK_ALL_SETS == null) && !isFig(no) ? RB_IMG + (/-\d+$/.test(no) ? no : no + '-1') + '.jpg' : '';
 }
 // (2026-10-30) 이미지 후보를 차례로: ①레고 공식몰(legoimg.js) ②Rebrickable ③브릭링크 이미지 서버(코믹콘 한정판·옛 세트까지 거의 다 있음)
 const LEGO_IMG = Object.fromEntries((window.BRICK_LEGO_IMG || '').trim().split('\n').filter(Boolean).map(l => {
@@ -883,6 +898,7 @@ document.getElementById('q').oninput = e => {
 };
 
 // ---- 길 찾기 ---------------------------------------------------------------
+const NEED_ALL = ['set', 'prices', 'compare', 'themes', 'theme', 'collection', 'limited', 'new'];
 async function route() {
   if (channel) { sb.removeChannel(channel); channel = null; }
   if (!sb) return renderSetup();
@@ -892,6 +908,13 @@ async function route() {
   markTabbar();
   paintNickBanner();
   try {
+    // 역대 세트 목록이 필요한 화면은 받을 때까지 잠깐 기다림 (보통 첫 화면을 보는 동안 이미 다 받아 둠)
+    if (NEED_ALL.includes(page) && window.BRICK_ALL_SETS == null) {
+      const h = location.hash;
+      show(el('section', { class: 'panel' }, el('div', { class: 'hint' }, '세트 목록 불러오는 중…')));
+      await loadAllSets();
+      if (location.hash !== h) return;
+    }
     // 처음 닉네임 정하기(임시 닉네임일 때)만 바로, 이미 정한 사람이 바꾸는 건 계정 설정(비밀번호 확인)에서
     if (page === 'nickname') return me && !needNick ? (location.hash = '#/me/settings') : renderNickSetup(a ? decodeURIComponent(a) : '#/');
     // 임시 닉네임이면 판매·채팅 전에 먼저 닉네임부터
@@ -2937,9 +2960,12 @@ async function renderReport(listingId) {
   if (sb) {
     // 메일 링크로 돌아오면 주소 # 뒤에 로그인 열쇠나 오류가 붙어 옴 → 읽은 뒤 주소에서 지움
     const back = new URLSearchParams(location.hash.replace(/^#\/?/, ''));
-    const { data } = await sb.auth.getSession();
-    me = data.session?.user || null;
-    if (back.has('access_token') || back.has('error')) {
+    const fromMail = back.has('access_token') || back.has('error');
+    // (2026-11-02 로딩 속도) 로그인 확인(토큰 갱신)을 기다리지 않고 기기에 저장된 로그인으로 바로 그림.
+    // 실제 확인 결과가 다르면 아래 onAuthStateChange가 다시 그림. DB 요청은 supabase가 토큰 갱신 뒤에 보냄
+    if (fromMail) me = (await sb.auth.getSession()).data.session?.user || null;
+    else try { me = JSON.parse(localStorage.getItem(`sb-${new URL(CFG.url).hostname.split('.')[0]}-auth-token`) || 'null')?.user || null; } catch (e) { me = null; }
+    if (fromMail) {
       history.replaceState(null, '', location.pathname + location.search + '#/');
       if (back.has('error')) toast(back.get('error_code') === 'otp_expired' ? '로그인 링크가 만료됐거나 이미 쓴 링크예요. 새 링크를 받아 주세요.' : `로그인하지 못했어요: ${back.get('error_description') || back.get('error')}`, true);
       else if (me) toast('로그인됐어요. 환영해요! 🧱');
@@ -2956,7 +2982,11 @@ async function renderReport(listingId) {
     });
   }
   renderNav();
-  await loadMyNick();
+  // 닉네임 확인은 판매·수정·채팅 화면으로 바로 들어올 때만 기다림 (다른 화면은 먼저 그리고 안내 띠는 나중에)
+  const first = location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (NICK_PAGES.includes(first) || first === 'nickname') await loadMyNick(); else loadMyNick();
   route();
   checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
+  // 역대 세트 목록은 첫 화면을 그린 뒤에 받음
+  loadAllSets().then(() => { if (filters.q && (!location.hash || location.hash === '#/')) renderList(); });
 })();
