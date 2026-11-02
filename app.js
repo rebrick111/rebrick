@@ -1860,7 +1860,7 @@ function renderPromos() {
     return el('div', { class: 'promo ' + promoState(p) + (p.gift ? ' has-pic' : '') }, im ? el('span', { class: 'promo-pic' }, im) : '',
       el('div', { class: 'promo-b' },
         el('div', { class: 'bar' }, el('b', {}, (p.gift ? '🎁 ' : p.kind === 'points' ? '⭐ ' : '📣 ') + p.name), p.gift ? el('a', { class: 'small', href: `#/set/${p.gift}` }, `#${p.gift}`) : '',
-          el('span', { class: 'grow' }), el('span', { class: 'small' }, [p.from && fmtD(p.from), p.to && fmtD(p.to)].filter(Boolean).join(' ~ ') + (p.from && !p.to ? ' 부터' : ''))),
+          el('span', { class: 'grow' }), el('span', { class: 'small' }, (!p.from && p.to ? '~ ' : '') + [p.from && fmtD(p.from), p.to && fmtD(p.to)].filter(Boolean).join(' ~ ') + (p.from && !p.to ? ' 부터' : ''))),
         el('div', { class: 'small' }, [
           p.min ? `${won(p.min)} 이상 구매` + (p.theme ? ` (${p.theme} 제품으로)` : '') : '',
           p.need?.length && !p.note ? `${p.need.slice(0, 3).map(n => CATALOG[n]?.name ? `${CATALOG[n].name}(${n})` : n).join(', ')}${p.need.length > 3 ? ` 등 ${p.need.length}개 중` : ''} 구매 시` : '',
