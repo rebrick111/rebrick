@@ -56,6 +56,7 @@ function mergeAllSets() {
   // 명작 세트는 한글 이름으로 (영어 이름은 검색용 별명으로)
   Object.entries(window.BRICK_ICONIC_NAMES || {}).forEach(([no, ko]) => { const c = CATALOG[no]; if (c?.en) { c.alias = [c.alias, c.name].filter(Boolean).join(' '); c.name = ko; c.en = false; } });
   RBMAP = Object.fromEntries(Object.entries(window.BRICK_RB_SETMAP || {}).map(([k, v]) => [k.toLowerCase(), v]));
+  applyRb();
 }
 const legoUrl = no => `https://www.lego.com/ko-kr/search?q=${encodeURIComponent(no)}`;
 // 판매 상태 → 짧은 표시
@@ -200,9 +201,30 @@ function applyLive(live) {
 }
 try { applyLive(JSON.parse(localStorage.getItem(LIVE_KEY) || 'null')); } catch (e) {}
 // 첫 화면을 그린 뒤 부름: 표가 바뀌었으면 받고, 6시간 넘었으면 함수에 새로 읽어 달라고 함(기다리지 않음)
+// (2026-11-02) 새로 나온 세트: 함수가 Rebrickable 파일을 일주일에 한 번 받아 lego_live 'rb'에 저장 → 역대 목록(allsets.js, 10/28)에 없는 번호만 보탬
+const RB_KEY = 'legoRb', RB_TTL = 7 * 86400e3;
+let rbLive = null;
+try { rbLive = JSON.parse(localStorage.getItem(RB_KEY) || 'null'); } catch (e) {}
+function applyRb() {
+  if (!rbLive?.data?.sets || window.BRICK_ALL_SETS == null) return;
+  rbLive.data.sets.forEach(l => {
+    const [no, en, y, theme, p] = l.split('|');
+    if (!no) return;
+    const c = CATALOG[no];
+    if (!c) CATALOG[no] = { name: en, theme: theme || '기타', pieces: +p || 0, year: +y || undefined, en: true, rb: true };
+    else { c.rb = true; if (!c.year && +y) c.year = +y; if (!c.pieces && +p) c.pieces = +p; }
+  });
+}
 async function refreshLive() {
   if (!sb) return;
-  const { data: meta } = await sb.from('lego_live').select('updated_at').eq('id', 'all').maybeSingle();
+  const { data: metas } = await sb.from('lego_live').select('id, updated_at').in('id', ['all', 'rb']);
+  const meta = (metas || []).find(m => m.id === 'all'), rbMeta = (metas || []).find(m => m.id === 'rb');
+  if (rbMeta?.updated_at && rbMeta.updated_at !== rbLive?.updated_at) {
+    const { data } = await sb.from('lego_live').select('data,updated_at').eq('id', 'rb').maybeSingle();
+    if (data?.data?.sets) { rbLive = data; try { localStorage.setItem(RB_KEY, JSON.stringify(data)); } catch (e) {} applyRb(); }
+  }
+  if (rbMeta && (!rbMeta.updated_at || Date.now() - Date.parse(rbMeta.updated_at) > RB_TTL))
+    sb.functions.invoke('lego', { body: { job: 'rb' } }).catch(() => {});
   const at = meta?.updated_at || '';
   if (at && at !== liveAt) {
     const { data } = await sb.from('lego_live').select('data,updated_at').eq('id', 'all').maybeSingle();
@@ -533,8 +555,15 @@ function renderNickSetup(next = '#/') {
 // ---- 🔔 알림 · ⭐ 키워드 즐겨찾기 (2026-10-30, update_6.sql) -----------------------
 // 알림은 DB 트리거가 notifications 표에 넣음 (즐겨찾기 키워드 새 상품·찜한 상품 가격 인하·가격 제안·후기·신고 결과)
 // → 여기선 읽고, 실시간으로 받아서 머리띠 🔔에 빨간 숫자
-const NOTIF_ICON = { keyword: '⭐', price: '💸', offer: '💰', offer_reply: '💬', review: '📝', report: '🚩' };
+const NOTIF_ICON = { keyword: '⭐', price: '💸', offer: '💰', offer_reply: '💬', review: '📝', report: '🚩', store: '🏪', admin: '🚫' };
 let notifs = [], notifCh = null, saved = new Map();
+// 관리자 여부 (표 admins에 내 줄이 있으면) — 관리자 메뉴·상품 화면 관리 상자에만 씀. 실제 권한은 DB가 확인
+let isAdmin = false;
+async function loadAdmin() {
+  isAdmin = false;
+  if (sb && me) { const { data } = await sb.from('admins').select('user_id').eq('user_id', me.id).maybeSingle(); isAdmin = !!data; }
+  return isAdmin;
+}
 async function loadNotifs() {
   notifs = [];
   if (sb && me) {
@@ -595,7 +624,7 @@ function starBtn(keyword, label = '') {
       const { data, error } = await sb.from('saved_searches').insert({ keyword: kw }).select().single();
       if (error) return toast(needUpdate(error), true);
       saved.set(k, data);
-      toast(`⭐ '${kw}' 즐겨찾기! 새 상품이 올라오면 🔔로 알려 드려요. 가격·상태 조건은 알림 화면에서 정할 수 있어요.`);
+      toast(`⭐ '${kw}' 즐겨찾기! 새 상품이 올라오면 🔔로 알려 드려요.` + (CATALOG[kw]?.store ? ' 공식몰에서 단종 임박·할인·재입고·출시될 때도 알려 드려요.' : '') + ' 가격·상태 조건은 알림 화면에서 정할 수 있어요.');
       try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
     }
     document.querySelectorAll('[data-star]').forEach(paintStar);
@@ -635,7 +664,7 @@ async function renderAlerts(tab = 'list') {
       return el('div', { class: 'srow' }, el('div', { class: 'srow-k' }, el('b', {}, '★ ' + s.keyword), look), el('div', { class: 'srow-c' }, mx, cd, del));
     });
     body = [addForm,
-      el('div', { class: 'hint' }, '세트번호·이름·테마를 즐겨찾기하면, 조건에 맞는 새 상품이 올라올 때 🔔 알림이 와요. 최고 가격·상태를 정해 두면 그 조건에 맞는 것만 알려 드려요.'),
+      el('div', { class: 'hint' }, '세트번호·이름·테마를 즐겨찾기하면, 조건에 맞는 새 상품이 올라올 때 🔔 알림이 와요. 최고 가격·상태를 정해 두면 그 조건에 맞는 것만 알려 드려요. 세트번호(예: 75192)를 즐겨찾기하면 🏪 공식몰에서 곧 단종·할인·재입고·출시될 때도 알려 드려요(6시간마다 확인).'),
       rows.length ? el('div', { class: 'srows' }, rows) : el('div', { class: 'empty' }, '아직 즐겨찾기가 없어요. 검색 결과·세트 화면·테마 화면의 ☆ 버튼을 눌러 보세요.')];
   } else {
     const rows = notifs.map(n => el('a', { class: 'alrow' + (n.read ? '' : ' new'), href: n.link || '#/alerts' },
@@ -789,11 +818,12 @@ function gradeCard(s, soldN) {
 }
 // 상점 화면 (번개장터 '내 상점'처럼): 색 띠 + 큰 동그라미 → 통계 줄 → 신뢰도·후기 태그 → [판매 상품 | 거래 후기] 탭
 async function renderUser(uid, tab = 'items') {
-  const [{ data: p }, s, { data: items }, { data: revs }] = await Promise.all([
-    sb.from('profiles').select('nickname, region, created_at').eq('id', uid).maybeSingle(),
+  const [{ data: p }, s, { data: items }, { data: revs }, { data: ban }] = await Promise.all([
+    sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     reviewSummary(uid),
     sb.from('listings').select('*').eq('seller_id', uid).order('created_at', { ascending: false }).limit(60),
-    sb.from('reviews').select('*').eq('target_id', uid).order('created_at', { ascending: false }).limit(30)]);
+    sb.from('reviews').select('*').eq('target_id', uid).order('created_at', { ascending: false }).limit(30),
+    sb.from('bans').select('reason').eq('user_id', uid).maybeSingle()]);
   if (!p) return show(el('section', { class: 'panel' }, el('h2', {}, '없는 사용자예요')));
   const { data: rp } = revs?.length ? await sb.from('profiles').select('id, nickname').in('id', [...new Set(revs.map(r => r.reviewer_id))]) : { data: [] };
   const rnick = new Map((rp || []).map(x => [x.id, x.nickname]));
@@ -824,6 +854,8 @@ async function renderUser(uid, tab = 'items') {
         mine ? el('a', { class: 'btn', href: '#/me/settings' }, '⚙️ 프로필 수정')
           : el('button', { type: 'button', onclick: () => shareLink(`${p.nickname}님의 상점 | 리브릭`, `${location.origin}${location.pathname}#/user/${uid}`) }, icon('share'), '공유')),
       el('div', { class: 'stats4' }, stat(selling.length, '판매 중', 'items'), stat(sold.length, '판매완료', 'sold'), stat(s.n, '거래 후기', 'reviews'), stat(s.pct == null ? '-' : `${s.pct}%`, '👍 좋았어요', 'reviews')),
+      ban ? el('div', { class: 'risk', role: 'note' }, el('b', {}, '⛔ 이용이 정지된 계정이에요'), el('div', {}, (ban.reason || '운영 정책 위반') + ' · 이 사람과는 거래하지 마세요.')) : '',
+      p.bundle_note ? el('div', { class: 'bundle' }, el('b', {}, '🎁 묶음 할인'), ' ' + p.bundle_note) : '',
       gradeCard(s, sold.length),
       s.tags.length ? el('div', { class: 'rv-tags big' }, s.tags.slice(0, 6).map(([t, n]) => el('span', {}, `${t} `, el('b', {}, n)))) : ''),
     el('section', { class: 'panel' }, tabs, body));
@@ -873,11 +905,42 @@ async function soldChart(no) {
   });
   return el('figure', { class: 'chartbox' }, el('figcaption', { class: 'small' }, `월 평균 거래가 · ${pts.reduce((a, p) => a + p.n, 0)}건 · 점에 대면 자세히`), el('div', { class: 'chartwrap' }, svg, tip));
 }
+// ---- 📉 공식몰 가격 기록 (2026-11-02) --------------------------------------------------
+// Edge Function 'lego'가 6시간마다 공식몰을 읽고, 가격이 바뀐 날만 lego_prices에 한 줄 → 계단 모양 선(가격은 바뀌기 전까지 그대로)
+const mdText = d => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
+async function storePriceBox(no) {
+  const { data } = await sb.from('lego_prices').select('day, price, list, sale').eq('no', no).order('day');
+  if (!data?.length) return '';
+  const cur = CATALOG[no]?.store?.price ?? data[data.length - 1].price;
+  const lo = data.reduce((a, r) => r.price < a.price ? r : a, data[0]), hiP = Math.max(...data.map(r => r.price), cur);
+  const changes = data.length - 1;
+  const head = el('div', { class: 'bar' }, el('b', {}, '📉 공식몰 가격 기록'),
+    changes && cur <= lo.price ? el('span', { class: 'lowbadge' }, '지금이 기록 중 최저가') : '',
+    el('span', { class: 'small' }, changes ? `${mdText(data[0].day)}부터 ${changes}번 바뀜 · 최저 ${won(lo.price)}(${mdText(lo.day)}) · 최고 ${won(hiP)}` : `${mdText(data[0].day)}부터 기록 중 · 가격이 바뀌면 여기에 그래프로 쌓여요`));
+  if (!changes) return el('div', { class: 'pricehist' }, head);
+  const W = 400, H = 150, L = 48, R = 14, T = 16, B = 24;
+  const dayN = d => Date.parse(d + 'T00:00:00Z') / 864e5, x0 = dayN(data[0].day), x1 = Math.max(dayN(ymdNow()), dayN(data[data.length - 1].day) + 1);
+  let lo2 = Math.min(...data.map(r => r.price)), hi2 = hiP;
+  const pad = Math.max((hi2 - lo2) * 0.2, hi2 * 0.04); lo2 = Math.max(0, lo2 - pad); hi2 += pad;
+  const X = d => L + (dayN(d) - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - lo2) / (hi2 - lo2)) * (H - T - B);
+  const short = v => v >= 10000 ? `${Math.round(v / 1000) / 10}만` : v.toLocaleString('ko-KR');
+  let d = '';
+  data.forEach((r, i) => { d += i ? `H${X(r.day)}V${Y(r.price)}` : `M${X(r.day)},${Y(r.price)}`; });
+  d += `H${X(ymdNow())}`;
+  const ticks = [0, 1, 2].map(i => lo2 + (hi2 - lo2) * i / 2);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'schart'); svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', '공식몰 가격 변동: ' + data.map(r => `${r.day} ${won(r.price)}${r.sale ? ` (${r.sale}% 할인)` : ''}`).join(', '));
+  svg.innerHTML = ticks.map(t => `<line class="g" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text class="ax" x="${L - 8}" y="${Y(t) + 4}" text-anchor="end">${short(Math.round(t))}</text>`).join('')
+    + `<text class="ax" x="${L}" y="${H - 6}">${mdText(data[0].day)}</text><text class="ax" x="${W - R}" y="${H - 6}" text-anchor="end">오늘</text>`
+    + `<path class="ln" d="${d}"/>` + data.map(r => `<circle class="pt" cx="${X(r.day)}" cy="${Y(r.price)}" r="4"><title>${r.day} ${won(r.price)}${r.sale ? ` · ${r.sale}% 할인` : ''}</title></circle>`).join('');
+  return el('div', { class: 'pricehist' }, head, el('figure', { class: 'chartbox' }, svg));
+}
 function markTabbar() {
   const h = location.hash || '#/', page = h.replace(/^#\/?/, '').split('/')[0];
   // 탭과 같은 묶음의 화면이면 그 탭을 표시 (세트 시세 화면은 '시세', 채팅방은 '채팅')
   const which = { '': '#/', item: '#/', prices: '#/prices', set: '#/prices', compare: '#/prices', themes: '#/themes', theme: '#/themes',
-    chats: '#/chats', chat: '#/chats', me: '#/me', login: '#/me', collection: '#/me' }[page];
+    chats: '#/chats', chat: '#/chats', me: '#/me', login: '#/me', collection: '#/me', minifigs: '#/me', admin: '#/me' }[page];
   document.querySelectorAll('#tabbar a').forEach(a => {
     const on = which && (a.getAttribute('href') === which || (which === '#/me' && a.getAttribute('href') === '#/login'));
     on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
@@ -986,7 +1049,9 @@ async function route() {
     if (page === 'me') return a === 'settings' ? await renderSettings() : await renderMe();
     if (page === 'chats') return await renderChats();
     if (page === 'chat' && a && b) return await renderChat(+a, b);
-    if (page === 'safety') return renderSafety();
+    if (page === 'safety') return renderSafety(a);
+    if (page === 'minifigs') return await renderMinifigs(a ? decodeURIComponent(a) : '');
+    if (page === 'admin') return await renderAdmin(a || 'reports');
     if (page === 'guide') return renderGuide(a === 'delivery' ? 'delivery' : 'direct');
     if (page === 'prices') return renderPrices(a ? decodeURIComponent(a) : '');
     if (page === 'set' && a) return await renderSet(decodeURIComponent(a));
@@ -1075,7 +1140,8 @@ async function renderList() {
   if (filters.kit === 'nomiss') qy = qy.in('cond', ['sealed', 'complete']);
   const q = filters.q.trim().replace(/[,()%*\\]/g, ' ').trim();
   if (q) qy = qy.or(`set_no.ilike.%${q}%,name.ilike.%${q}%`);
-  qy = filters.sort === 'low' ? qy.order('price') : filters.sort === 'high' ? qy.order('price', { ascending: false }) : qy.order('created_at', { ascending: false });
+  // 최신순 = 끌어올린 시각 순 (끌어올리지 않은 글은 올린 시각)
+  qy = filters.sort === 'low' ? qy.order('price') : filters.sort === 'high' ? qy.order('price', { ascending: false }) : qy.order('bumped_at', { ascending: false });
   const { data, error } = await qy;
   if (error) { grid.replaceChildren(el('div', { class: 'status err', style: 'grid-column:1/-1' }, needUpdate(error))); summary.textContent = ''; return; }
   let list = data;
@@ -1304,7 +1370,7 @@ function renderHero(part) {
   return el('div', { style: 'display:grid;gap:22px' },
     el('nav', { class: 'shortcuts', 'aria-label': '바로가기' },
       sc('#/prices', 'chart', '시세표', '#3355ff'), sc('#/themes', 'layers', '테마', '#0f766e'), sc('#/limited', 'star', '한정판·SDCC', '#d97706'), sc('#/new/soon', 'spark', '신제품·단종', '#db2777'),
-      sc('#/news', 'paper', '레고 소식', '#e5383b'), sc('#/youtube', 'play', '유튜버', '#dc2626'), sc('#/stores', 'pin', '레고스토어', '#12a150'), sc('#/sellguide', 'tip', '판매 꿀팁', '#7c4dff')),
+      sc('#/news', 'paper', '레고 소식', '#e5383b'), sc('#/youtube', 'play', '유튜버', '#dc2626'), sc('#/stores', 'pin', '레고스토어', '#12a150'), sc('#/minifigs', 'user', '미피 체크판', '#7c4dff')),
     el('div', { class: 'strips' },
       SDCC ? el('a', { class: 'strip', href: '#/limited' }, el('span', { class: 'tag warm' }, `D-${daysUntil(SDCC.from)}`),
         el('span', { class: 'txt' }, `${SDCC.name} · 역대 코믹콘 한정판 ${LIMITED.length}개 시세`), el('span', { class: 'go' }, '→')) : '',
@@ -1777,10 +1843,40 @@ function renderYouTube(pick = '') {
     return b;
   }));
   draw();
+  // (2026-11-02) 모든 채널의 최신 영상 한 목록 — 함수가 YouTube API로 1시간마다 모아 lego_live 'yt'에 (API 키가 있을 때만)
+  const latest = el('div', {});
+  ytLatestBox(v => {
+    const c = YT.find(x => x.id === v.ch);
+    player.replaceChildren(el('iframe', { src: `https://www.youtube-nocookie.com/embed/${v.v}?autoplay=1`, title: v.t,
+      allow: 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen', allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin' }));
+    if (c) title.replaceChildren(el('div', {}, el('b', {}, v.t), el('div', { class: 'small' }, `${c.name} · ${ago(v.at)}`)),
+      el('a', { class: 'btn', href: `https://www.youtube.com/watch?v=${v.v}`, target: '_blank', rel: 'noopener' }, '유튜브에서 보기 ↗'));
+    player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }).then(b => { if (b) latest.replaceWith(b); });
   show(el('section', { class: 'section' },
     el('div', { class: 'sec-head' }, el('div', {}, el('h2', {}, '레고 유튜버'), el('p', {}, '국내·해외 인기 레고 채널의 새 영상을 바로 볼 수 있어요. 채널을 누르면 최신 영상부터 재생돼요.'))),
-    el('div', { class: 'ytbox' }, title, player), chips, grid));
+    el('div', { class: 'ytbox' }, title, player), latest, chips, grid));
   play(first);
+}
+async function ytLatestBox(onPick) {
+  if (!sb) return '';
+  const { data } = await sb.from('lego_live').select('data, updated_at').eq('id', 'yt').maybeSingle().then(r => r, () => ({}));
+  // 1시간 넘었으면 함수에 새로 모아 달라고 함 (키가 없으면 'nokey' — 6시간에 한 번만 다시 물어봄)
+  const stale = !data?.updated_at || Date.now() - Date.parse(data.updated_at) > 3600e3;
+  let tried = 0; try { tried = +localStorage.getItem('ytTry') || 0; } catch (e) {}
+  if (data && stale && Date.now() - tried > (data.updated_at ? 3600e3 : 6 * 3600e3)) {
+    try { localStorage.setItem('ytTry', String(Date.now())); } catch (e) {}
+    sb.functions.invoke('lego', { body: { job: 'yt', ids: YT.map(c => c.id) } }).catch(() => {});
+  }
+  const vids = (data?.data?.videos || []).filter(v => YT.some(c => c.id === v.ch)).slice(0, 12);
+  if (!vids.length) return '';
+  return el('div', { class: 'section' }, el('div', { class: 'sec-head' }, el('h3', {}, '방금 올라온 영상'), el('span', { class: 'live' }, '실시간'), el('span', { class: 'small' }, `${ago(data.updated_at)} 확인`)),
+    el('div', { class: 'ytvids' }, vids.map(v => {
+      const c = YT.find(x => x.id === v.ch);
+      return el('button', { type: 'button', class: 'ytv', onclick: () => onPick(v) },
+        el('span', { class: 'ytv-img' }, el('img', { src: `https://i.ytimg.com/vi/${v.v}/mqdefault.jpg`, alt: '', loading: 'lazy' })),
+        el('span', { class: 'ytv-t' }, v.t), el('span', { class: 'small' }, `${c?.name || ''} · ${ago(v.at)}`));
+    })));
 }
 function renderStores() {
   let region = '';
@@ -1945,6 +2041,8 @@ function renderCompare() {
 }
 
 // ---- 세트 시세 --------------------------------------------------------------
+// 공식 조립 설명서 (레고 공식 사이트, 무료 PDF) — 숫자 세트번호만
+const manualLink = no => /^\d{3,7}$/.test(String(no)) ? el('a', { class: 'btn', href: `https://www.lego.com/ko-kr/service/building-instructions/${no}`, target: '_blank', rel: 'noopener' }, '📘 설명서 PDF ↗') : '';
 async function renderSet(no) {
   const c = CATALOG[no], mk = MARKET[no], bl = BL[no], f = isFig(no);
   // 브릭링크(해외) 6개월 판매 평균과 한국 시세 비교
@@ -1968,8 +2066,9 @@ async function renderSet(no) {
   ]);
   const box = (title, main, sub) => el('div', { class: 'pbox' }, el('b', {}, title), el('div', { class: 'pv' }, main), sub ? el('div', { class: 'small' }, sub) : '');
   const soldRows = Object.keys(COND).map(k => stats.find(s => s.cond === k)).filter(Boolean);
-  const chartSlot = el('div', {});
+  const chartSlot = el('div', {}), storeHist = el('div', {});
   soldChart(no).then(c => { if (c) chartSlot.replaceWith(c); });
+  if (c?.store) storePriceBox(no).then(b => { if (b) storeHist.replaceWith(b); }).catch(() => {});
   show(el('section', { class: 'panel' },
       el('div', { class: 'sethead' },
         el('div', { class: 'thumb setimg' }, thumb({ set_no: no, name: c?.name, theme: c?.theme })),
@@ -1983,7 +2082,8 @@ async function renderSet(no) {
           el('span', { class: 'small' }, c.store.avail), el('span', { class: 'grow' }),
           el('a', { class: 'btn', href: legoUrl(no), target: '_blank', rel: 'noopener' }, /출시 예정|선주문/.test(c.store.avail) ? '공식몰에서 예약 ↗' : '공식몰에서 보기 ↗')),
         c.store.flags.includes('retiringSoon') ? el('div', { class: 'small' }, '⏳ 공식몰에 "곧 단종"으로 표시돼 있어요. 단종되면 중고 가격이 오르는 경우가 많아요.') : '',
-        ...promosFor(no).map(p => el('div', { class: 'small' }, `🎁 이 세트를 사면 ${p.name}(#${p.gift}) 증정 · ${p.to ? p.to.slice(5).replace('-', '/') + '까지' : ''}`)))
+        ...promosFor(no).map(p => el('div', { class: 'small' }, `🎁 이 세트를 사면 ${p.name}(#${p.gift}) 증정 · ${p.to ? p.to.slice(5).replace('-', '/') + '까지' : ''}`)),
+        storeHist)
         : f ? '' : el('div', { class: 'small' }, '지금 레고 공식몰에서 팔지 않는 세트예요 (단종 등). ', el('a', { href: legoUrl(no), target: '_blank', rel: 'noopener' }, '공식몰 검색 ↗')),
       el('div', { class: 'pboxes' },
         f ? box('공식몰 정가', '-', '미니피규어는 따로 팔지 않아요')
@@ -2002,8 +2102,9 @@ async function renderSet(no) {
           el('span', {}, `평균 ${won(s.avg_price)}`, el('span', { class: 'small' }, ` · ${s.n}건 · ${won(s.min_price)} ~ ${won(s.max_price)}`)), el('span', {}), el('span', {}))))
         : el('div', { class: 'hint' }, '아직 리브릭에서 팔린 기록이 없어요. 판매완료로 바꿀 때 실제 거래 가격을 적어 주시면 모두가 보는 시세가 돼요.'),
       el('div', { class: 'bar' }, el('a', { class: 'btn primary', href: `#/sell/${no}` }, f ? '이 미니피규어 팔기' : '이 세트 팔기'),
-        starBtn(no, '매물 알림 받기'),
+        starBtn(no, c?.store ? '매물·공식몰 알림' : '매물 알림 받기'),
         el('a', { class: 'btn', href: me ? `#/collection/${no}` : '#/login' }, '🗂️ 내 컬렉션에 추가'),
+        manualLink(no),
         el('button', { type: 'button', onclick: () => shareLink(`${c?.name || no} 시세 | 리브릭`, `${location.origin}${location.pathname}#/set/${encodeURIComponent(no)}`) }, icon('share'), '시세 공유'))),
     el('section', { class: 'panel' }, el('h2', {}, `지금 리브릭에 올라온 매물 ${live?.length || 0}개`),
       live?.length ? el('div', { class: 'grid' }, live.map(it => el('a', { class: 'card', href: `#/item/${it.id}` },
@@ -2089,18 +2190,21 @@ async function renderItem(id) {
   const { data: it, error } = await sb.from('listings').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   if (!it) return show(el('section', { class: 'panel' }, el('h2', {}, '없는 상품이에요'), el('a', { href: '#/' }, '목록으로')));
-  const [{ data: seller }, { count: listed }, { count: sold }, trust] = await Promise.all([
-    sb.from('profiles').select('nickname, region, created_at').eq('id', it.seller_id).maybeSingle(),
+  const [{ data: seller }, { count: listed }, { count: sold }, trust, { data: ban }] = await Promise.all([
+    sb.from('profiles').select('*').eq('id', it.seller_id).maybeSingle(),
     sb.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', it.seller_id),
     sb.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', it.seller_id).eq('status', 'sold'),
     reviewSummary(it.seller_id),
+    sb.from('bans').select('reason').eq('user_id', it.seller_id).maybeSingle(),
   ]);
   const mine = me && me.id === it.seller_id;
+  if (me && !mine) await loadAdmin();
   const p = ppp(it), v = vsMsrp(it), m = msrpOf(it), mk = MARKET[it.set_no];
   const age = seller?.created_at ? daysSince(seller.created_at) : null;
 
   // 판매자·가격으로 본 주의 신호
   const risks = [];
+  if (ban) risks.push('운영 정책 위반으로 이용이 정지된 판매자예요. 거래하지 마세요.');
   if (tooCheap(it)) risks.push(`공식몰 정가(${won(m)})의 절반도 안 되는 가격이에요. 시세보다 너무 싼 미개봉·완전체는 사기 미끼인 경우가 많아요.`);
   if (age !== null && age < 7) risks.push('가입한 지 일주일이 안 된 판매자예요. 처음 거래한다면 직거래를 추천해요.');
   if (it.trade_delivery && !it.trade_direct) risks.push('택배거래만 가능한 상품이에요. 돈을 보내기 전에 더치트에서 계좌·전화번호를 조회하고, 판매자에게 상품 옆에 오늘 날짜와 닉네임을 적은 쪽지를 놓고 찍은 사진을 요청하세요.');
@@ -2159,7 +2263,17 @@ async function renderItem(id) {
     };
     const offersSlot = el('div', {});
     offersFor(it).then(b => offersSlot.replaceWith(b));
-    actions = el('div', {}, el('div', { class: 'bar' }, sel, el('a', { class: 'btn', href: `#/edit/${it.id}` }, '수정'), del, el('a', { class: 'btn', href: '#/chats' }, '받은 채팅 보기')), soldBox,
+    // ⬆️ 끌어올리기: 하루 한 번, 목록 '최신순' 맨 위로 (DB 트리거가 24시간 확인)
+    const bumpLeft = it.bumped_at ? 864e5 - (Date.now() - Date.parse(it.bumped_at)) : 0;
+    const bump = el('button', { type: 'button', disabled: bumpLeft > 0 || it.status === 'sold' }, bumpLeft > 0 ? `⬆️ ${Math.ceil(bumpLeft / 36e5)}시간 뒤 끌어올리기` : '⬆️ 끌어올리기');
+    bump.onclick = async () => {
+      bump.disabled = true;
+      const { error } = await sb.from('listings').update({ bumped_at: new Date().toISOString() }).eq('id', it.id);
+      if (error) { bump.disabled = false; return toast(/하루에 한 번/.test(error.message) ? '끌어올리기는 하루에 한 번만 할 수 있어요.' : errMsg(error), true); }
+      toast('⬆️ 끌어올렸어요! 목록 맨 위에 보여요. 내일 다시 할 수 있어요.');
+      bump.textContent = '⬆️ 24시간 뒤 끌어올리기';
+    };
+    actions = el('div', {}, el('div', { class: 'bar' }, sel, el('a', { class: 'btn', href: `#/edit/${it.id}` }, '수정'), bump, del, el('a', { class: 'btn', href: '#/chats' }, '받은 채팅 보기')), soldBox,
       it.status !== 'sold' ? el('div', { class: 'bar' }, el('span', { class: 'small' }, '💸 가격'), priceIn, priceBtn, el('span', { class: 'small' }, '내리면 찜한 사람에게 알림이 가요')) : '',
       offersSlot,
       el('div', { class: 'offsite' }, el('div', {}, el('b', {}, '📣 더 빨리 팔고 싶다면'), el('div', { class: 'small' }, '당근·번개장터에도 올려 보세요. 리브릭 시세 링크가 붙은 판매글을 만들어 드려요.')),
@@ -2169,11 +2283,13 @@ async function renderItem(id) {
       el('span', { class: 'small likes', 'data-likes': it.id }),
       el('button', { type: 'button', onclick: () => shareLink(`${it.name} ${won(it.price)} | 리브릭`, `${location.origin}${location.pathname}#/item/${it.id}`) }, icon('share'), '공유'),
       el('span', { class: 'grow' }), el('a', { class: 'btn ghost', href: me ? `#/report/${it.id}` : '#/login' }, '🚩 신고')),
-      it.status !== 'sold' ? offerBox(it) : '');
+      it.status !== 'sold' ? offerBox(it) : '',
+      isAdmin ? adminBox(it, seller?.nickname, !!ban) : '');
   }
 
   show(el('div', { class: 'detail' }, gallery,
     el('section', { class: 'panel' },
+      it.hidden ? el('div', { class: 'risk', role: 'note' }, el('b', {}, '🚫 운영자가 숨긴 상품이에요'), el('div', {}, (it.hidden_reason || '운영 정책 위반') + ' · 판매자와 관리자만 볼 수 있어요.')) : '',
       el('div', { class: 'setno' }, [it.set_no ? `#${it.set_no}` : (it.cond === 'parts' ? '벌크·부품' : it.theme === '미니피규어' ? '미니피규어' : '묶음·기타'), it.theme].join(' · ')),
       el('h2', {}, it.name),
       el('div', { class: 'bar' }, el('span', { class: 'price' }, won(it.price)), el('span', { class: `cond ${it.cond}` }, COND[it.cond]),
@@ -2181,6 +2297,8 @@ async function renderItem(id) {
       v ? el('div', { class: v.cls }, `${v.text} (공식몰 정가 ${won(m)}, ${window.BRICK_CATALOG_DATE} 기준)`) : '',
       !it.set_no ? '' : mk ? el('div', { class: 'small' }, '중고 시세 참고: ' + [mk.sealed && `미개봉 ${fmtRange(mk.sealed)}`, mk.used && `개봉 ${fmtRange(mk.used)}`].filter(Boolean).join(' · ') + ' ',
         el('a', { href: `#/set/${it.set_no}` }, '시세 자세히 →')) : el('a', { class: 'small', href: `#/set/${it.set_no}` }, '이 세트 시세 보기 →'),
+      it.set_no && /^\d{3,7}$/.test(it.set_no) ? el('div', { class: 'small' }, '📘 ', el('a', { href: `https://www.lego.com/ko-kr/service/building-instructions/${it.set_no}`, target: '_blank', rel: 'noopener' }, '공식 설명서로 구성품 확인 ↗'),
+        ' · 🔍 ', el('a', { href: '#/safety/fake' }, '정품·가품 구별법')) : '',
       !it.set_no ? '' : (() => {   // 브릭링크(해외) 평균과 비교 (번호 있을 때만)
         const b = ['sealed', 'complete'].includes(it.cond) ? blOf(it.set_no, it.cond) : null;
         return el('div', { class: 'small' }, '🌏 ', b && it.price ? `브릭링크 ${it.cond === 'sealed' ? '새것' : '중고'} 평균 ${won(b[1])} → 이 상품은 ${diffText(it.price, b[1], '브릭링크')} ` : '',
@@ -2212,7 +2330,8 @@ async function renderItem(id) {
         el('div', {}, el('a', { class: 'seller-name', href: `#/user/${it.seller_id}` }, el('b', {}, seller?.nickname || '판매자'), gradeChip(brickGrade(trust, sold ?? 0)), age !== null && age < 7 ? el('span', { class: 'newbie' }, '새 판매자') : ''),
           el('div', { class: 'small' }, [seller?.region, age !== null ? `가입 ${age + 1}일째` : '', `등록 ${listed ?? 0}개 · 판매완료 ${sold ?? 0}개`].filter(Boolean).join(' · ')),
           el('div', { class: 'small trust' }, `매너 등급 ${brickGrade(trust, sold ?? 0).g} (${brickGrade(trust, sold ?? 0).label}) · `, trustText(trust), trust.tags[0] ? ` · "${trust.tags[0][0]}"` : '', ' ',
-            el('a', { href: `#/user/${it.seller_id}` }, '프로필·후기 보기 →')))),
+            el('a', { href: `#/user/${it.seller_id}` }, '프로필·후기 보기 →')),
+          seller?.bundle_note ? el('a', { class: 'bundle', href: `#/user/${it.seller_id}` }, el('b', {}, '🎁 묶음 할인'), ` ${seller.bundle_note}`, el('span', { class: 'small' }, ` · 판매 중인 ${Math.max(0, (listed ?? 0) - (sold ?? 0))}개 보기 →`)) : '')),
       actions, st,
       el('div', { class: 'hint' }, '안전 거래: 가능하면 직접 만나 실물과 구성품을 확인한 뒤 결제하세요. ',
         el('a', { href: '#/guide/direct' }, '직거래 가이드'), ' · ', el('a', { href: '#/guide/delivery' }, '택배거래 가이드'), ' · ', el('a', { href: '#/safety' }, '사기 예방')))));
@@ -2645,7 +2764,7 @@ async function renderMe() {
     sb.from('reports').select('*').order('created_at', { ascending: false }).limit(20)]);
   const likedItems = (liked || []).map(r => r.listings).filter(Boolean);
   const selling = mine.filter(x => x.status !== 'sold'), sold = mine.filter(x => x.status === 'sold');
-  const REPORT_ST = { received: '접수됨', reviewing: '검토 중', done: '처리 완료' };
+  const REPORT_ST = REPORT_STATUS;
   const nick = prof?.nickname || '';
 
   // 내 상품·찜: 탭 하나씩 (길게 늘어놓지 않게)
@@ -2671,6 +2790,20 @@ async function renderMe() {
   repRow.onclick = () => { if (reps?.length) repBox.hidden = !repBox.hidden; };
   const logout = row('↩', '로그아웃', '', null, 'danger');
   logout.onclick = async () => { await sb.auth.signOut(); location.hash = '#/'; };
+  // 🎁 묶음 할인 한 줄 (내 상품 화면·상점에 보임)
+  const bundleIn = el('input', { maxlength: 60, placeholder: '예: 2개 이상 사면 10% 할인 · 택배비 한 번만', value: prof?.bundle_note || '', 'aria-label': '묶음 할인 안내' });
+  const bundleBtn = el('button', { type: 'button', class: 'primary' }, '저장');
+  bundleBtn.onclick = async () => {
+    const { error } = await sb.from('profiles').update({ bundle_note: bundleIn.value.trim() }).eq('id', me.id);
+    toast(error ? needUpdate(error) : bundleIn.value.trim() ? '묶음 할인 안내를 저장했어요. 내 상품 화면·상점에 보여요.' : '묶음 할인 안내를 지웠어요.', !!error);
+    if (!error) bundleRow.querySelector('.mr').textContent = bundleIn.value.trim() ? '켜짐' : '없음';
+  };
+  const bundleBox = el('div', { class: 'replist', hidden: true }, el('div', { class: 'small' }, '내 상품을 여러 개 사려는 사람에게 보여 줄 한 줄이에요. 최대 60자, 비우면 안 보여요.'), el('div', { class: 'bar' }, bundleIn, bundleBtn));
+  const bundleRow = row('🎁', '묶음 할인 안내', prof?.bundle_note ? '켜짐' : '없음');
+  bundleRow.onclick = () => { bundleBox.hidden = !bundleBox.hidden; };
+  const installRow = row('📲', '홈 화면에 추가', isStandalone() ? '앱으로 보는 중' : '앱처럼 쓰기');
+  installRow.onclick = installApp;
+  await loadAdmin();
 
   show(
     // 1) 프로필 카드 (당근 '나의 당근'처럼 맨 위)
@@ -2691,9 +2824,13 @@ async function renderMe() {
       row('⭐', '키워드 즐겨찾기', saved.size ? `${saved.size}개` : '', '#/alerts/star'),
       row('💬', '채팅', unread.size ? `안 읽음 ${unread.size}` : '', '#/chats'),
       row('🗂️', '내 컬렉션', '가진 세트·시세', '#/collection'),
+      row('🧍', '미피 시리즈 체크판', '모은 미피 체크', '#/minifigs'),
+      bundleRow, bundleBox,
       repRow, repBox,
+      isAdmin ? row('🛠️', '관리자', '신고·숨김·정지', '#/admin') : '',
       el('h3', {}, '설정'),
       row('⚙️', '계정 설정', '🔒 닉네임·지역·비밀번호', '#/me/settings'),
+      installRow,
       row('💡', '판매 꿀팁', '', '#/sellguide'),
       row('🛡️', '안전거래·사기 예방', '', '#/safety'),
       logout));
@@ -2974,8 +3111,19 @@ function renderGuide(kind) {
 }
 
 // ---- 안전거래 (사기 예방) -----------------------------------------------------
-function renderSafety() {
-  const scam = (icon, title, how, tip) => el('div', { class: 'scam' }, el('div', { class: 'ico', 'aria-hidden': 'true' }, icon),
+function renderSafety(part = '') {
+  // (2026-11-02) 정품·가품(호환 블록) 구별법 — #/safety/fake 로 바로 열림
+  setTimeout(() => { if (part === 'fake') document.getElementById('fake')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 0);
+  const fake = el('div', { class: 'gbox', id: 'fake' }, el('b', {}, '🔍 정품·가품(호환 블록) 구별법'),
+    el('ol', {},
+      el('li', {}, '스터드(동그란 돌기)마다 작은 "LEGO" 글자가 새겨져 있어요. 글자가 없거나 흐리면 호환 블록일 가능성이 커요. (아주 일부 투명·특수 부품은 예외)'),
+      el('li', {}, '미니피규어 목 부분, 다리 안쪽에도 LEGO 글자가 있어요. 얼굴 인쇄가 번지거나 색이 묘하게 다르면 의심하세요.'),
+      el('li', {}, '박스: 세트번호·바코드·레고 로고 위치를 공식몰 사진과 비교하세요. 이름이 "LEPIN"·"LELE"처럼 비슷하면 가품이에요.'),
+      el('li', {}, '설명서: 공식 설명서 PDF(세트 화면 "📘 설명서")와 표지·쪽수를 비교하세요.'),
+      el('li', {}, '부품 색: 정품은 같은 색 부품끼리 색이 고르고, 끼우는 힘(클러치)이 일정해요. 너무 빡빡하거나 헐거우면 의심하세요.'),
+      el('li', {}, '가격: 미개봉 인기 세트가 정가의 절반 이하면 가품·사기를 먼저 의심하세요.')),
+    el('div', { class: 'small' }, '가품 같으면 상품 화면의 🚩 신고 → "가품·호환 블록 같아요"로 알려 주세요.'));
+  const scam =(icon, title, how, tip) => el('div', { class: 'scam' }, el('div', { class: 'ico', 'aria-hidden': 'true' }, icon),
     el('div', {}, el('b', {}, title), el('div', {}, how), el('div', { class: 'small tip' }, '👉 ' + tip)));
   show(el('section', { class: 'panel guide' },
     el('h2', {}, '🛡️ 안전거래 가이드'),
@@ -2989,6 +3137,7 @@ function renderSafety() {
       scam('🔄', '부품 바꿔치기·누락', '희귀 미니피규어나 부품을 빼고 "완전체"라고 팔아요.', '미니피규어 수와 구성품을 공식 설명서와 비교하세요. 택배라면 개봉 영상을 찍어 두세요.'),
       scam('🧾', '가짜 송장', '보내지도 않고 운송장 번호만 보내거나, 가짜 조회 링크를 보내요.', '송장 번호는 택배사 홈페이지에서 직접 조회하세요.'),
       scam('👤', '명의 다른 계좌', '"친구 계좌예요", "사업자 계좌예요"라며 다른 사람 이름의 계좌로 받아요.', '예금주 이름이 판매자와 다르면 거래하지 마세요.')),
+    fake,
     el('div', { class: 'gbox' }, el('b', {}, '🔎 거래 전에 조회하기'),
       el('ul', {},
         el('li', {}, el('a', { href: 'https://thecheat.co.kr', target: '_blank', rel: 'noopener' }, '더치트 (thecheat.co.kr)'), ' — 계좌번호·전화번호 사기 피해 신고 이력 조회'),
@@ -3001,6 +3150,222 @@ function renderSafety() {
         el('li', {}, '리브릭 상품 화면의 🚩 신고 버튼으로 알려 주세요. 다른 사람의 피해를 막을 수 있어요.'))),
     el('div', { class: 'bar' }, el('a', { class: 'btn', href: '#/guide/direct' }, '🤝 직거래 가이드'), el('a', { class: 'btn', href: '#/guide/delivery' }, '📦 택배거래 가이드'))));
 }
+
+// ---- 🛠️ 관리자 (2026-11-02): 신고 처리 · 글 숨김 · 계정 정지 ------------------------------
+// 표 admins에 있는 계정만. 화면은 편의용이고, 실제로 막는 건 DB 권한(RLS·트리거)
+const REPORT_STATUS = { received: '접수됨', reviewing: '검토 중', done: '처리 완료' };
+// 위험한 버튼은 두 번 눌러야 실행
+const armed = (b, again, fn) => { b.onclick = () => { if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = again; return; } fn(); }; return b; };
+async function setHidden(id, hidden, reason) {
+  const { error } = await sb.from('listings').update({ hidden, hidden_reason: hidden ? reason || '' : '' }).eq('id', id);
+  if (error) return toast(errMsg(error), true), false;
+  toast(hidden ? '글을 숨겼어요. 판매자에게 알림이 갔어요.' : '숨김을 풀었어요.');
+  return true;
+}
+async function setBan(uid, ban, reason) {
+  const { error } = ban ? await sb.from('bans').insert({ user_id: uid, reason: reason || '' }) : await sb.from('bans').delete().eq('user_id', uid);
+  if (error) return toast(/duplicate|unique/i.test(error.message) ? '이미 정지된 계정이에요.' : errMsg(error), true), false;
+  toast(ban ? '계정을 정지했어요. 새 글·채팅을 못 써요.' : '정지를 풀었어요.');
+  return true;
+}
+function adminBox(it, nick, banned) {
+  const reason = el('input', { placeholder: '이유 (예: 가품 판매, 선입금 사기) — 판매자에게 보여요', maxlength: 100, value: it.hidden_reason || '', 'aria-label': '숨김·정지 이유' });
+  const hide = it.hidden ? el('button', { type: 'button', onclick: async () => { if (await setHidden(it.id, false)) route(); } }, '숨김 풀기')
+    : armed(el('button', { type: 'button', class: 'danger' }, '🚫 글 숨기기'), '한 번 더 누르면 숨겨요', async () => { if (await setHidden(it.id, true, reason.value.trim())) route(); });
+  const ban = banned ? el('button', { type: 'button', onclick: async () => { if (await setBan(it.seller_id, false)) route(); } }, '정지 풀기')
+    : armed(el('button', { type: 'button', class: 'danger' }, `⛔ ${nick || '판매자'} 정지`), '한 번 더 누르면 정지해요', async () => { if (await setBan(it.seller_id, true, reason.value.trim())) route(); });
+  return el('div', { class: 'adminbox' }, el('b', {}, '🛠️ 관리자'), reason, el('div', { class: 'bar' }, hide, ban, el('a', { class: 'btn', href: '#/admin' }, '신고 목록 →')));
+}
+async function renderAdmin(tab) {
+  if (!me) return needLogin();
+  if (!(await loadAdmin())) return show(el('section', { class: 'panel' }, el('h2', {}, '관리자만 볼 수 있어요'), el('a', { href: '#/' }, '처음으로')));
+  const { data: reps, error } = await sb.from('reports').select('*').order('created_at', { ascending: false }).limit(150);
+  if (error) return show(el('section', { class: 'panel' }, el('h2', {}, '🛠️ 관리자'), status(needUpdate(error), true)));
+  const waiting = (reps || []).filter(r => r.status !== 'done').length;
+  const tabs = el('div', { class: 'seg', role: 'group', 'aria-label': '관리 메뉴' }, [['reports', `🚩 신고 ${waiting ? `(${waiting})` : ''}`], ['hidden', '🚫 숨긴 글'], ['bans', '⛔ 정지 계정']].map(([k, t]) =>
+    el('a', { class: 'seg-b', href: '#/admin/' + k, 'aria-pressed': String(tab === k) }, t)));
+  const nicks = async ids => { ids = [...new Set(ids.filter(Boolean))]; if (!ids.length) return new Map();
+    const { data } = await sb.from('profiles').select('id, nickname').in('id', ids); return new Map((data || []).map(p => [p.id, p.nickname])); };
+  let body;
+  if (tab === 'hidden') {
+    const { data: hid } = await sb.from('listings').select('id, name, set_no, price, seller_id, hidden_reason, photos, theme').eq('hidden', true).order('bumped_at', { ascending: false }).limit(100);
+    const nk = await nicks((hid || []).map(h => h.seller_id));
+    body = hid?.length ? el('div', { class: 'ref' }, hid.map(h => el('div', { class: 'admrow' },
+      el('a', { href: `#/item/${h.id}` }, el('b', {}, h.name), el('span', { class: 'small' }, ` · ${won(h.price)} · `)), el('a', { class: 'small', href: `#/user/${h.seller_id}` }, nk.get(h.seller_id) || '판매자'),
+      el('div', { class: 'small' }, '이유: ' + (h.hidden_reason || '-')),
+      el('div', { class: 'bar' }, el('button', { type: 'button', onclick: async () => { if (await setHidden(h.id, false)) route(); } }, '숨김 풀기')))))
+      : el('div', { class: 'empty' }, '숨긴 글이 없어요.');
+  } else if (tab === 'bans') {
+    const { data: bans } = await sb.from('bans').select('*').order('created_at', { ascending: false });
+    const nk = await nicks((bans || []).map(b => b.user_id));
+    body = bans?.length ? el('div', { class: 'ref' }, bans.map(b => el('div', { class: 'admrow' },
+      el('a', { href: `#/user/${b.user_id}` }, el('b', {}, nk.get(b.user_id) || '사용자')), el('span', { class: 'small' }, ` · ${new Date(b.created_at).toLocaleDateString('ko-KR')} 정지`),
+      el('div', { class: 'small' }, '이유: ' + (b.reason || '-')),
+      el('div', { class: 'bar' }, el('button', { type: 'button', onclick: async () => { if (await setBan(b.user_id, false)) route(); } }, '정지 풀기')))))
+      : el('div', { class: 'empty' }, '정지된 계정이 없어요.');
+  } else {
+    const ids = [...new Set((reps || []).map(r => r.listing_id).filter(Boolean))];
+    const [{ data: ls }, { data: banned }, nk] = await Promise.all([
+      ids.length ? sb.from('listings').select('id, name, price, hidden, seller_id').in('id', ids) : { data: [] },
+      sb.from('bans').select('user_id'),
+      nicks((reps || []).flatMap(r => [r.reporter_id, r.seller_id]))]);
+    const lmap = new Map((ls || []).map(l => [l.id, l])), bset = new Set((banned || []).map(b => b.user_id));
+    let filt = 'open';
+    const list = el('div', { class: 'ref' });
+    const chips = el('div', { class: 'filters' }, [['open', '처리 안 한 것'], ['all', '전체'], ['done', '처리 완료']].map(([k, t]) => {
+      const b = el('button', { class: 'chip', 'aria-pressed': String(k === filt) }, t);
+      b.onclick = () => { filt = k; chips.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); };
+      return b;
+    }));
+    const draw = () => {
+      const rows = (reps || []).filter(r => filt === 'all' || (filt === 'done' ? r.status === 'done' : r.status !== 'done'));
+      list.replaceChildren(...(rows.length ? rows.map(r => {
+        const l = lmap.get(r.listing_id), sid = r.seller_id || l?.seller_id;
+        const st = el('select', { 'aria-label': '처리 상태' }, Object.entries(REPORT_STATUS).map(([k, t]) => el('option', { value: k, selected: r.status === k }, t)));
+        const res = el('input', { value: r.result || '', maxlength: 200, placeholder: '신고한 사람에게 보낼 결과 (예: 판매자를 정지했어요)', 'aria-label': '처리 결과' });
+        const saveB = el('button', { type: 'button', class: 'primary' }, '저장 · 알림');
+        saveB.onclick = async () => {
+          saveB.disabled = true;
+          const changed = st.value !== r.status;
+          const { error } = await sb.from('reports').update({ status: st.value, result: res.value.trim() }).eq('id', r.id);
+          saveB.disabled = false;
+          if (error) return toast(errMsg(error), true);
+          Object.assign(r, { status: st.value, result: res.value.trim() });
+          toast(changed ? '저장했어요. 신고한 사람에게 결과 알림이 갔어요.' : '저장했어요. (상태를 바꿔야 알림이 가요)');
+        };
+        const quick = [
+          l && !l.hidden ? armed(el('button', { type: 'button', class: 'danger' }, '🚫 글 숨기기'), '한 번 더', async () => { if (await setHidden(l.id, true, res.value.trim() || REPORT_REASONS[r.reason])) { l.hidden = true; draw(); } }) : '',
+          l?.hidden ? el('span', { class: 'kchip warn' }, '숨긴 글') : '',
+          sid && !bset.has(sid) ? armed(el('button', { type: 'button', class: 'danger' }, '⛔ 판매자 정지'), '한 번 더', async () => { if (await setBan(sid, true, res.value.trim() || REPORT_REASONS[r.reason])) { bset.add(sid); draw(); } }) : '',
+          sid && bset.has(sid) ? el('span', { class: 'kchip warn' }, '정지된 판매자') : ''];
+        return el('div', { class: 'admrow' + (r.status === 'done' ? ' done' : '') },
+          el('div', { class: 'bar' }, el('span', { class: 'kchip' + (r.status === 'done' ? ' ok' : r.status === 'reviewing' ? '' : ' warn') }, REPORT_STATUS[r.status] || '접수됨'),
+            el('b', {}, REPORT_REASONS[r.reason] || r.reason), el('span', { class: 'small' }, ago(r.created_at))),
+          r.detail ? el('div', { class: 'desc' }, r.detail) : '',
+          el('div', { class: 'small' }, '상품: ', l ? el('a', { href: `#/item/${l.id}` }, `${l.name} (${won(l.price)})`) : '삭제됨',
+            ' · 판매자: ', sid ? el('a', { href: `#/user/${sid}` }, nk.get(sid) || '판매자') : '-', ' · 신고: ', el('a', { href: `#/user/${r.reporter_id}` }, nk.get(r.reporter_id) || '사용자')),
+          el('div', { class: 'bar' }, st, res, saveB), el('div', { class: 'bar' }, quick));
+      }) : [el('div', { class: 'empty' }, filt === 'open' ? '처리할 신고가 없어요 👍' : '신고가 없어요.')]));
+    };
+    draw();
+    body = [chips, list];
+  }
+  show(el('section', { class: 'panel' }, el('h2', {}, '🛠️ 관리자'),
+    el('p', { class: 'small', style: 'margin:0' }, '신고 상태를 바꾸면 신고한 사람에게 결과 알림이 가요. 글을 숨기면 판매자·관리자만 볼 수 있고, 계정을 정지하면 새 글·채팅을 못 써요. 숨김·정지 이유는 당사자에게 알림으로 가요.'),
+    tabs, ...[body].flat()));
+}
+
+// ---- 🧍 미니피규어 시리즈 체크판 (2026-11-02) -------------------------------------------------
+// 시리즈마다 낱개 미피(cmf.js, Rebrickable 자료)를 보여 주고, 가진 것을 눌러 체크. 로그인하면 DB(cmf_owned)에, 아니면 이 기기에만
+let cmfP = null;
+function loadCmf() {
+  if (window.BRICK_CMF != null) return Promise.resolve(true);
+  return cmfP ||= new Promise(ok => {
+    const s = document.createElement('script');
+    s.src = 'cmf.js' + (VER ? '?v=' + VER : '');
+    s.onload = () => ok(true); s.onerror = () => { cmfP = null; ok(false); };
+    document.body.append(s);
+  });
+}
+const CMF_KEY = 'cmfOwned';
+const cmfLocal = () => { try { return JSON.parse(localStorage.getItem(CMF_KEY) || '[]'); } catch (e) { return []; } };
+async function cmfOwned() {
+  const local = cmfLocal();
+  if (!me) return { set: new Set(local), db: false };
+  const { data, error } = await sb.from('cmf_owned').select('fig');
+  if (error) return { set: new Set(local), db: false };
+  const set = new Set((data || []).map(r => r.fig));
+  // 로그인 전에 이 기기에서 체크한 것은 내 계정으로 옮김
+  const move = local.filter(f => !set.has(f));
+  if (move.length) { const { error: e2 } = await sb.from('cmf_owned').insert(move.map(fig => ({ fig }))); if (!e2) { move.forEach(f => set.add(f)); try { localStorage.removeItem(CMF_KEY); } catch (e) {} } }
+  return { set, db: true };
+}
+async function renderMinifigs(pick) {
+  show(el('section', { class: 'panel' }, el('div', { class: 'hint' }, '미니피규어 시리즈 불러오는 중…')));
+  if (!(await loadCmf())) return show(el('section', { class: 'panel' }, el('h2', {}, '시리즈 목록을 불러오지 못했어요'), status('잠시 뒤 다시 열어 주세요.', true)));
+  const h0 = location.hash;
+  const series = window.BRICK_CMF.trim().split('\n').map(l => {
+    const [ko, en, year, figs] = l.split('|');
+    return { ko, en, year: +year, slug: en.toLowerCase().replace(/minifigures/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      figs: figs.split(';').map(f => { const k = f.indexOf(':'), num = f.slice(0, k); return { num, name: f.slice(k + 1), key: num.replace(/-1$/, '') }; }) };
+  });
+  const { set: owned, db } = await cmfOwned();
+  if (location.hash !== h0) return;
+  const cnt = s => s.figs.filter(f => owned.has(f.num)).length;
+  let cur = series.find(s => s.slug === pick) || series.find(s => cnt(s) > 0) || series[0];
+  let onlyMissing = false;
+  const sum = el('div', { class: 'pboxes' }), chips = el('div', { class: 'filters scroll cmf-chips', role: 'group', 'aria-label': '시리즈' });
+  const head = el('div', { class: 'cmf-head' }), grid = el('div', { class: 'cmfgrid' });
+  const miss = el('label', { class: 'small', style: 'display:inline-flex;gap:6px;align-items:center' }, el('input', { type: 'checkbox', style: 'width:auto', onchange: e => { onlyMissing = e.target.checked; draw(); } }), '없는 것만 보기');
+  const save = async (f, on) => {
+    on ? owned.add(f.num) : owned.delete(f.num);
+    if (db) {
+      const { error } = on ? await sb.from('cmf_owned').insert({ fig: f.num }) : await sb.from('cmf_owned').delete().eq('fig', f.num);
+      if (error && !/duplicate/i.test(error.message)) toast(needUpdate(error), true);
+    } else try { localStorage.setItem(CMF_KEY, JSON.stringify([...owned])); } catch (e) {}
+  };
+  // 시리즈 미피 매물 개수 (판매 중) — 세트번호 칸에 Rebrickable 번호(예: 71045-3)로 올린 글
+  const market = async s => {
+    const { data } = await sb.from('listings').select('set_no').in('set_no', s.figs.map(f => f.key)).neq('status', 'sold').limit(500);
+    const n = new Map(); (data || []).forEach(r => n.set(r.set_no, (n.get(r.set_no) || 0) + 1));
+    if (s !== cur) return;
+    grid.querySelectorAll('[data-fig]').forEach(x => { const k = n.get(x.dataset.fig); x.textContent = k ? ` · 매물 ${k}` : ''; });
+  };
+  const drawSum = () => {
+    const all = series.reduce((a, s) => a + cnt(s), 0), done = series.filter(s => cnt(s) === s.figs.length).length, started = series.filter(s => cnt(s) > 0).length;
+    sum.replaceChildren(...[['모은 미피', `${all}개`, `전체 ${series.reduce((a, s) => a + s.figs.length, 0)}종 중`], ['모으는 시리즈', `${started}개`, `${series.length}개 시리즈 중`], ['완성한 시리즈', `${done}개`, done ? '🏆' : '한 시리즈를 다 채워 보세요']]
+      .map(([t, v, s]) => el('div', { class: 'pbox' }, el('b', {}, t), el('div', { class: 'pv' }, v), el('div', { class: 'small' }, s))));
+  };
+  const draw = () => {
+    drawSum();
+    chips.replaceChildren(...series.map(s => {
+      const n = cnt(s);
+      const b = el('button', { class: 'chip' + (n === s.figs.length ? ' full' : ''), 'aria-pressed': String(s === cur) }, s.ko, n ? el('span', { class: 'cnum' }, ` ${n}/${s.figs.length}`) : '');
+      b.onclick = () => { cur = s; history.replaceState(null, '', '#/minifigs/' + s.slug); draw(); };
+      return b;
+    }));
+    const n = cnt(cur), tot = cur.figs.length;
+    head.replaceChildren(el('div', { class: 'cmf-title' }, el('h3', {}, cur.ko, ' ', el('span', { class: 'small' }, `${cur.en.replace(/ Minifigures$/, '')} · ${cur.year}년 · ${tot}종`)),
+      el('div', { class: 'cmfbar', role: 'img', 'aria-label': `${tot}개 중 ${n}개 모음` }, el('i', { style: `width:${tot ? n / tot * 100 : 0}%` })),
+      el('div', { class: 'small' }, n === tot ? '🏆 시리즈 완성!' : `${n} / ${tot} 모음 · ${tot - n}개 남음`)), miss);
+    grid.replaceChildren(...cur.figs.filter(f => !onlyMissing || !owned.has(f.num)).map(f => {
+      const on = owned.has(f.num);
+      const img = el('img', { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', src: `${RB_IMG}${f.num}.jpg` });
+      img.onerror = () => img.replaceWith(el('span', { class: 'cmf-ph' }, '🧍'));
+      const btn = el('button', { type: 'button', class: 'cmf-pic', 'aria-pressed': String(on), 'aria-label': `${f.name} — ${on ? '가지고 있음, 누르면 해제' : '없음, 누르면 체크'}` }, img, el('span', { class: 'ck', 'aria-hidden': 'true' }, '✓'));
+      btn.onclick = async () => { await save(f, !owned.has(f.num)); draw(); };
+      return el('div', { class: 'cmf' + (on ? ' on' : '') }, btn, el('div', { class: 'cmf-name' }, f.name),
+        el('div', { class: 'small cmf-links' }, el('a', { href: `#/set/${encodeURIComponent(f.key)}` }, '시세'), ' · ',
+          on ? el('a', { href: `#/sell/${encodeURIComponent(f.key)}` }, '팔기') : el('a', { href: `#/set/${encodeURIComponent(f.key)}` }, '구하기'), el('span', { 'data-fig': f.key })));
+    }));
+    market(cur);
+  };
+  draw();
+  show(el('section', { class: 'panel' }, el('h2', {}, '🧍 미니피규어 시리즈 체크판'),
+      el('p', { class: 'small', style: 'margin:0' }, '시리즈별로 가진 미피를 눌러 체크해요. 없는 미피는 "구하기"로 리브릭 매물·시세를 바로 볼 수 있어요. 미피 이름은 영어예요(Rebrickable 자료).'),
+      db ? '' : el('div', { class: 'nickbanner', style: 'margin:0' }, el('span', {}, me ? '체크판 저장소가 아직 준비 안 됐어요. 지금은 이 기기에만 저장돼요.' : '지금은 이 기기에만 저장돼요. 로그인하면 어느 기기에서나 이어져요.'), me ? '' : el('a', { href: '#/login' }, el('b', {}, '로그인 →'))),
+      sum),
+    el('section', { class: 'panel' }, chips, head, grid));
+  chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+
+// ---- 📲 홈 화면에 추가 (PWA, 2026-11-02) ----------------------------------------------
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+async function installApp() {
+  if (isStandalone()) return toast('이미 앱으로 열려 있어요 📲');
+  if (installEvt) {
+    installEvt.prompt();
+    const r = await installEvt.userChoice.catch(() => ({}));
+    installEvt = null;
+    if (r.outcome === 'accepted') toast('홈 화면에 리브릭을 추가했어요 📲');
+    return;
+  }
+  toast(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '사파리 아래쪽 공유 버튼(□↑) → "홈 화면에 추가"를 눌러 주세요.' : '브라우저 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가"를 눌러 주세요.');
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+document.getElementById('drawerInstall')?.addEventListener('click', e => { e.stopPropagation(); installApp(); });
 
 // ---- 신고 ------------------------------------------------------------------
 async function renderReport(listingId) {
@@ -3053,7 +3418,7 @@ async function renderReport(listingId) {
       me = session?.user || null;
       renderNav();
       if (was !== me?.id) {
-        route(); checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
+        route(); checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved(); loadAdmin();
         // 방금 로그인했는데 임시 닉네임이면 닉네임 정하기 화면으로
         loadMyNick().then(() => { if (!was && me && needNick) location.hash = '#/nickname/' + encodeURIComponent(location.hash && location.hash !== '#/login' ? location.hash : '#/'); });
       }
