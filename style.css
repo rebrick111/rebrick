@@ -825,6 +825,11 @@ a.chip { text-decoration: none; display: inline-flex; align-items: center; }
 .promo.now { box-shadow: inset 4px 0 0 var(--ok); }
 .promo.soon { box-shadow: inset 4px 0 0 var(--blue); }
 .promo.past { opacity: .7; }
+/* 사은품 사진 (2026-11-02 공식몰 실시간) */
+.promo.has-pic { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; }
+.promo-pic { width: 64px; height: 64px; border-radius: 10px; background: #fff; display: grid; place-items: center; overflow: hidden; }
+.promo-pic img { width: 100%; height: 100%; object-fit: contain; }
+.promo-b { display: grid; gap: 4px; min-width: 0; }
 .calc { display: grid; gap: 10px; }
 .calc .ok { color: var(--ok); }
 .calc .more { color: var(--fg); font-weight: 500; }

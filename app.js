@@ -159,6 +159,66 @@ const LEGO_IMG = Object.fromEntries((window.BRICK_LEGO_IMG || '').trim().split('
   const [no, id, file] = l.split('|');
   return [no, `https://www.lego.com/cdn/cs/set/assets/blt${id}/${file || no + '_Prod.png'}?format=webply&fit=bounds&quality=75&width=480`];
 }));
+
+// ---- 공식몰 실시간 자료 (2026-11-02) ------------------------------------------------
+// Edge Function 'lego'가 6시간마다 공식몰(전체 세트·출시 예정·할인 + 사은품 행사·약관)을 읽어 표 lego_live에 저장.
+// 사이트는 지난번 받은 것(localStorage)을 바로 쓰고, 표가 바뀌었으면 새로 받아 다시 그림. store.js·promos.js는 못 받을 때 쓰는 기본값
+const LIVE_KEY = 'legoLive', LIVE_TTL = 6 * 3600e3;
+let liveAt = '';
+function applyLive(live) {
+  const d = live?.data;
+  if (!d || !live.updated_at) return false;
+  const day = live.updated_at.slice(0, 10);
+  if (d.store?.length) {
+    const seen = new Set();
+    d.store.forEach(p => {
+      seen.add(p.no);
+      const old = CATALOG[p.no] || {};
+      CATALOG[p.no] = { ...old, name: p.name, theme: old.theme && old.theme !== '기타' ? old.theme : storeTheme(p.theme), pieces: p.pcs || old.pieces || 0,
+        msrp: p.list || p.price, store: { price: p.price, avail: p.avail, sale: p.sale || 0, flags: p.flags || [] },
+        ...(old.en ? { en: false, alias: [old.alias, old.name].filter(Boolean).join(' ') } : {}) };
+      if (p.img && !LEGO_IMG[p.no]) LEGO_IMG[p.no] = `https://www.lego.com/cdn/cs/set/assets/blt${p.img}?format=webply&fit=bounds&quality=75&width=480`;
+    });
+    // 전체 목록을 다 읽었을 때만: 공식몰에서 빠진 세트는 '판매 중' 표시를 뗌 (정가는 남김)
+    if (typeof d.cats?.['all-sets'] === 'number' && d.cats['all-sets'] > 300)
+      Object.entries(CATALOG).forEach(([no, c]) => { if (c.store && !seen.has(no)) delete c.store; });
+    window.BRICK_STORE_DATE = day;
+  }
+  if (d.promos?.length) {
+    d.promos.forEach(lp => {
+      const v = Object.fromEntries(Object.entries({ gift: lp.gift, name: lp.name, from: lp.from, to: lp.to, min: lp.min, value: lp.value, need: lp.need?.length ? lp.need : null,
+        theme: lp.theme, insiders: lp.insiders || null, live: lp.live || null, note: !lp.min && !lp.need?.length ? lp.qual : '' }).filter(([, x]) => x));
+      if (lp.img && !LEGO_IMG[lp.gift]) LEGO_IMG[lp.gift] = lp.img + '?format=webply&fit=bounds&quality=75&width=480';
+      const p = PROMOS.find(x => x.gift === lp.gift);
+      if (p) Object.assign(p, v); else PROMOS.push(v);
+    });
+    PROMOS.sort((a, b) => (b.to || b.from || '9999').localeCompare(a.to || a.from || '9999'));
+    window.BRICK_PROMOS_DATE = day;
+  }
+  liveAt = live.updated_at;
+  return true;
+}
+try { applyLive(JSON.parse(localStorage.getItem(LIVE_KEY) || 'null')); } catch (e) {}
+// 첫 화면을 그린 뒤 부름: 표가 바뀌었으면 받고, 6시간 넘었으면 함수에 새로 읽어 달라고 함(기다리지 않음)
+async function refreshLive() {
+  if (!sb) return;
+  const { data: meta } = await sb.from('lego_live').select('updated_at').eq('id', 'all').maybeSingle();
+  const at = meta?.updated_at || '';
+  if (at && at !== liveAt) {
+    const { data } = await sb.from('lego_live').select('data,updated_at').eq('id', 'all').maybeSingle();
+    if (applyLive(data)) {
+      try { localStorage.setItem(LIVE_KEY, JSON.stringify(data)); } catch (e) {}
+      // 공식몰 자료를 쓰는 화면이면 다시 그림 (입력 중이면 안 건드림)
+      const page = location.hash.replace(/^#\/?/, '').split('/')[0];
+      if (['', 'promos', 'new', 'set', 'theme'].includes(page) && !document.activeElement?.matches('input, textarea, select')) {
+        const y = scrollY; await route(); scrollTo(0, y);
+      }
+    }
+  }
+  if (!at || Date.now() - Date.parse(at) > LIVE_TTL)
+    // 함수는 JWT 확인 켜져 있음 → supabase 클라이언트로 불러야 키가 같이 감
+    sb.functions.invoke('lego', { method: 'GET' }).then(({ data: r }) => { if (r?.status === 'updated') refreshLive(); }).catch(() => {});
+}
 function imgsOf(no) {
   no = String(no || '').trim();
   if (!no) return [];
@@ -1795,12 +1855,17 @@ function renderPromos() {
   const groups = { now: [], soon: [], past: [] };
   PROMOS.forEach(p => groups[promoState(p)].push(p));
   const fmtD = d => d ? d.slice(5).replace('-', '/') : '';
-  const card = p => el('div', { class: 'promo ' + promoState(p) },
-    el('div', { class: 'bar' }, el('b', {}, (p.gift ? '🎁 ' : p.kind === 'points' ? '⭐ ' : '📣 ') + p.name), p.gift ? el('a', { class: 'small', href: `#/set/${p.gift}` }, `#${p.gift}`) : '',
-      el('span', { class: 'grow' }), el('span', { class: 'small' }, [p.from && fmtD(p.from), p.to && fmtD(p.to)].filter(Boolean).join(' ~ ') + (p.from && !p.to ? ' 부터' : ''))),
-    el('div', { class: 'small' }, [
-      p.min ? `${won(p.min)} 이상 구매` + (p.theme ? ` (${p.theme} 제품으로)` : '') : '',
-      p.value ? `사은품 ${won(p.value)} 상당` : '', p.insiders ? 'Insiders 회원 계정 필요' : '', p.note || ''].filter(Boolean).join(' · ')));
+  const card = p => {
+    const im = p.gift ? pic(p.gift, {}, () => im.remove()) : '';
+    return el('div', { class: 'promo ' + promoState(p) + (p.gift ? ' has-pic' : '') }, im ? el('span', { class: 'promo-pic' }, im) : '',
+      el('div', { class: 'promo-b' },
+        el('div', { class: 'bar' }, el('b', {}, (p.gift ? '🎁 ' : p.kind === 'points' ? '⭐ ' : '📣 ') + p.name), p.gift ? el('a', { class: 'small', href: `#/set/${p.gift}` }, `#${p.gift}`) : '',
+          el('span', { class: 'grow' }), el('span', { class: 'small' }, [p.from && fmtD(p.from), p.to && fmtD(p.to)].filter(Boolean).join(' ~ ') + (p.from && !p.to ? ' 부터' : ''))),
+        el('div', { class: 'small' }, [
+          p.min ? `${won(p.min)} 이상 구매` + (p.theme ? ` (${p.theme} 제품으로)` : '') : '',
+          p.need?.length && !p.note ? `${p.need.slice(0, 3).map(n => CATALOG[n]?.name ? `${CATALOG[n].name}(${n})` : n).join(', ')}${p.need.length > 3 ? ` 등 ${p.need.length}개 중` : ''} 구매 시` : '',
+          p.value ? `사은품 ${won(p.value)} 상당` : '', p.insiders ? 'Insiders 회원 계정 필요' : '', p.note || ''].filter(Boolean).join(' · '))));
+  };
   // 계산기: 세트번호를 넣으면 공식몰 가격 합계와 받을 수 있는 사은품
   const input = el('input', { id: 'promoSets', placeholder: '살 세트번호를 쉼표로 (예: 10356, 76419)', 'aria-label': '살 세트번호' });
   const out = el('div', { class: 'calc', 'aria-live': 'polite' });
@@ -1825,7 +1890,7 @@ function renderPromos() {
   input.oninput = calc; calc();
   show(el('section', { class: 'panel' },
       el('h2', {}, '🎁 레고 공식몰 프로모션'),
-      el('p', { class: 'small', style: 'margin:0' }, `레고 한국 공식몰의 구매 사은품·행사 정보예요 (${window.BRICK_PROMOS_DATE} 확인). 재고가 떨어지면 일찍 끝날 수 있고, 정확한 조건은 공식몰 약관을 꼭 확인하세요.`),
+      el('p', { class: 'small', style: 'margin:0' }, `레고 한국 공식몰의 구매 사은품·행사 정보예요 (${liveAt ? `공식몰에서 자동으로 가져옴 · ${ago(liveAt)} 갱신` : window.BRICK_PROMOS_DATE + ' 확인'}). 재고가 떨어지면 일찍 끝날 수 있고, 정확한 조건은 공식몰 약관을 꼭 확인하세요.`),
       el('h3', {}, '진행 중'), groups.now.length ? el('div', { class: 'promos' }, groups.now.map(card)) : el('div', { class: 'hint' }, '지금 진행 중인 프로모션이 없어요.'),
       el('h3', {}, '다가오는 행사'), groups.soon.length ? el('div', { class: 'promos' }, groups.soon.map(card)) : el('div', { class: 'hint' }, '발표된 행사가 없어요.'),
       el('div', { class: 'bar' }, el('a', { class: 'btn', href: 'https://www.lego.com/ko-kr/page/lego-offers-promotions', target: '_blank', rel: 'noopener' }, '공식몰 할인 및 행사 ↗'),
@@ -2989,6 +3054,7 @@ async function renderReport(listingId) {
   if (NICK_PAGES.includes(first) || first === 'nickname') await loadMyNick(); else loadMyNick();
   route();
   checkUnread(); watchInbox(); loadLikes(); loadNotifs(); watchNotifs(); loadSaved();
+  refreshLive().catch(() => {});
   // 역대 세트 목록은 첫 화면을 그린 뒤에 받음
   loadAllSets().then(() => { if (filters.q && (!location.hash || location.hash === '#/')) renderList(); });
 })();
