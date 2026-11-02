@@ -27,6 +27,29 @@ MandRproductions|UCLnr9MzQ_v_a_OPmJkye5lA|@MandRproductions|world|레고 영상
 brickhubs|UC0Xx7xOz0L9_DUzkZcDrsdg|@BrickHubs|world|레고 영상
 `;
 
+// 채널 프로필 사진 (2026-11-02 각 채널 페이지 og:image에서 가져옴). 채널이 사진을 바꾸면 옛 주소가 안 열릴 수 있음 → 사이트는 글자 동그라미로 대신
+// 값 = yt3.googleusercontent.com/ 뒤 경로 (크기 부분 "=s…" 빼고)
+window.BRICK_YT_AVATAR = {
+  'UCY-d9-BjGZtnETUVdWqOt4Q': 'ytc/AIdro_muMEj9o-CSx7NJO8bpCggKZOJguPfqY2NtEmCQFla2Tlg',
+  'UCmA7038F43v888Q82sNTNCw': 'BVqfGlVVPTHqRSpXOqfkhCxC-t7IV6uKDa9QTeLEZQftkKmB7mXCorTr5Yownq3jXum-wySy4Ic',
+  'UC2BRSQm6_TSz2Y5zWU6fUfQ': 'WGRveqsTai6tiP7FHpL6Lcq1ia64lrVgoUyhJm45CBsaiYEg5LzdWmDdKLIDwjjzVbUfvYRlAg',
+  'UCKha6gyKf5v8s9-WrVBlS8w': 'mdC2PRRbLUrsQI5QZxGGgo4olT5hUufdnplNbWyIRkajbDL0ZeJXHA4UPBmanZS5yFkR1_Sx',
+  'UC5GGGj_QmUaeRlhMnCq7pzQ': 'KV2WjVkRkWyT0PM4KG8abRVQ92NowqPy1ZZD1dx1Hr8qawkJ4EQHV0D3i8IGYPXtAZsX7P6ypQ',
+  'UCC0I6GYZxzyNadv27tjz-lQ': 'Dlnl2R3KRL8OFYap5JxPW3ZEHlJr6IYLyfyzgj0K0qmuNaZ2GIDJ6q4hiZ3wVly_yAdGNJhq9Q',
+  'UCeQ5bROeD75lIvD-hsf15kQ': 'X146qaDlbqHa1Ezme0d8wOPt4-c4-thm0-0I15f7VnQeEK09NsNiuBGxJIs_409gep_2gmQm2A',
+  'UCQEN1RKh_9INXIcq0kldBww': 'RYsyu8ck-zv8HtNovIT6e450d14UXhDyE5D9S-04jqTYzHq2_YgPhSg23Hf2Ko3a8fXyZ-Q5',
+  'UCP-Ng5SXUEt0VE-TXqRdL6g': 'gH8N9RvRWYqmXjYx9cs9OM5De_VA6w1-qxRYiEd2pJ1VvHvpT0iYhI7NQ8WAApIik0IANfuEoQ',
+  'UCUuvZ0skL2WYZ3rhPMZbfdA': '7QMRvHdlzbb-ZggL_a0Qq0GBLZDw9yQJyxpdQRG34UNBnGPK7ehEWe74QDfxkbq8PCSc8XuBmg',
+  'UClsFdM0HzTdF1JYoraQ0aUw': 'ytc/AIdro_m8-EAIC1BpP1XGw_bY5ECY9aO4x9jikMRjJH-aSJQp0-w',
+  'UCH09uL3dLqsVsOh0XmapzLQ': 'awc5yhWXGI3voaVfkCnZXzJJDU3rEhGHiWFVBkxJyA3XLFOEZ3uFfRmwxtLgXVsjBTrVPbMI',
+  'UCfU8ME4_m48QwDJCUvpzqyQ': 'ytc/AIdro_kbj-MLXk2UG9_EIL45DFL6vmXHysoYXyS-fsJ0D6gYyg',
+  'UCqLbTAc5Mn2cJDu1-FZ2W3g': 'oyW5dkD2zh1W_ZHZBwW7wwjOC6Ve6bV6PS-pa5E2avyAsWrmF8ba26stpIdGJBcTuarVv6ihsQ',
+  'UCrhb3SP2lZBgguLHIWWuHOQ': 'GGXtWDJgvoLKJNz7cQ44e1UdmiQmCjkD_EsafP13FISoj5LVsizLCAGPVWoYhcgal8h9RGC5',
+  'UC4GaWcWGhh5n1WmJvb1oBkA': 'WMQ1fZIwvKYKxUiROt91VLNrLZPpX8wqMLICZkUtXcFS-Dhh0GM7tfVZfK4w6L7L_qZ1T_9xXw',
+  'UCLnr9MzQ_v_a_OPmJkye5lA': 'ubyNE_6TqPrPp0nYBwpf7mKR0DF7DQh_onHLRuzlhsEIzWj-jGSYjuM5PA3fCRc0ZkHSzq2n3J0',
+  'UC0Xx7xOz0L9_DUzkZcDrsdg': 'zovU08YR2L2KIHpIqHeRwhMMxqIz68IntobtcZRCS7atqB2XYKz7V0Lp-0KOQcX_jWki_UxsOQ',
+};
+
 // 뉴스 피드 (Edge Function 허용 목록과 같아야 함)
 window.BRICK_NEWS_FEEDS = {
   kr: ['https://news.google.com/rss/search?q=' + encodeURIComponent('레고') + '&hl=ko&gl=KR&ceid=KR:ko'],

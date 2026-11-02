@@ -1059,7 +1059,7 @@ async function renderList() {
         el('div', { class: 'section' }, el('div', { class: 'sec-head' }, el('h2', {}, '레고 소식'), el('span', { class: 'live' }, '실시간'), el('a', { class: 'more', href: '#/news' }, '더 보기 →')), box),
         el('div', { class: 'section' }, el('div', { class: 'sec-head' }, el('h2', {}, '레고 유튜버'), el('a', { class: 'more', href: '#/youtube' }, '전체 →')),
           el('div', { class: 'ymini' }, YT.filter(c => c.area === 'kr').slice(0, 4).concat(YT.filter(c => c.area === 'world').slice(0, 2)).map(c =>
-            el('a', { class: 'ych', href: `#/youtube/${c.id}` }, el('span', { class: 'yav', style: `--h:${[...c.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360}` }, c.name.replace(/^LEGO.*/, 'L').slice(0, 1)),
+            el('a', { class: 'ych', href: `#/youtube/${c.id}` }, ytAvatar(c),
               el('span', { class: 'ytxt' }, el('b', {}, c.name), el('span', { class: 'small' }, c.note)))))));
     })() : '',
     home ? renderRails() : '',
@@ -1694,6 +1694,17 @@ async function shareLink(title, url) {
 
 // ---- 레고 소식 · 유튜버 · 레고스토어 (media.js) -------------------------------------
 const YT = (window.BRICK_YT || '').trim().split('\n').filter(Boolean).map(l => { const [name, id, handle, area, note] = l.split('|'); return { name, id, handle, area, note }; });
+// 유튜버 동그라미: 채널 프로필 사진 (2026-11-02 사용자 "프로필 이미지가 구림"). 사진이 안 열리면 예전처럼 색 동그라미 + 첫 글자
+function ytAvatar(c) {
+  const box = el('span', { class: 'yav', style: `--h:${[...c.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360}` }, c.name.replace(/^LEGO.*/, 'L').slice(0, 1));
+  const p = (window.BRICK_YT_AVATAR || {})[c.id];
+  if (p) {
+    const img = el('img', { src: `https://yt3.googleusercontent.com/${p}=s176-c-k-c0x00ffffff-no-rj`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+    img.onerror = () => img.remove();
+    box.append(img);
+  }
+  return box;
+}
 const STORES = (window.BRICK_STORES || '').trim().split('\n').filter(Boolean).map(l => { const [region, name, addr, tel, hours] = l.split('|'); return { region, name, addr, tel, hours }; });
 const FEED_FN = (CFG.url || '') + '/functions/v1/feeds';
 const feedCache = new Map();
@@ -1756,7 +1767,7 @@ function renderYouTube(pick = '') {
   const grid = el('div', { class: 'ychs' });
   const draw = () => grid.replaceChildren(...YT.filter(c => !area || c.area === area).map(c => {
     const b = el('button', { class: 'ych', 'data-id': c.id, 'aria-pressed': 'false', onclick: () => { play(c); player.scrollIntoView({ behavior: 'smooth', block: 'center' }); } },
-      el('span', { class: 'yav', style: `--h:${[...c.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 360}` }, c.name.replace(/^LEGO.*/, 'L').slice(0, 1)),
+      ytAvatar(c),
       el('span', { class: 'ytxt' }, el('b', {}, c.name), el('span', { class: 'small' }, c.note)));
     return b;
   }));
