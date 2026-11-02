@@ -4,15 +4,17 @@
 // 스토어: 레고 공식 사이트 스토어 찾기(lego.com/ko-kr/stores) 기준. 주소는 공식 영문 주소를 한글로 옮김
 
 // 이름|채널 ID|핸들|kr·world|한 줄 소개
+// 2026-11-02 사용자: "이상훈TV처럼 어른 수집가·레고 리뷰 결" — 최근 영상까지 확인해서 고름.
+// 뺀 것: 흑백리뷰(먹방 채널), 레고 단추(요즘 건담·트랜스포머), 늦가을(레고 콩트 쇼츠), 레고웅(닌자고 설정 해설), 레고매니아(2024년 뒤로 안 올림)
 window.BRICK_YT = `
-레고도사꾸삐|UCmA7038F43v888Q82sNTNCw|@kupibricks|kr|조립·리뷰, 구독자 100만 넘는 국내 대표 레고 채널
-레고따단 DDadan|UC2BRSQm6_TSz2Y5zWU6fUfQ|@LegoDdadan|kr|레고 리뷰와 스톱모션
-흑백리뷰|UC5T4b53jVkm07JbYoyYiu7A|@흑백리뷰|kr|레고·장난감 리뷰
-Late autumn 늦가을|UCCT13ljH0QQrO0kCUH84llA|@lateautumn|kr|레고 리뷰
-ABUJI BRICK 브릭 아부지|UCKha6gyKf5v8s9-WrVBlS8w|@ABUJI-BRICK|kr|레고 리뷰
-레고 단추|UCoVlMBiDdz6HKOxXk1CkjaQ|@lego-button|kr|레고 리뷰
-레고웅 LEGO WOONG|UCBxxzausXBbyu5JfM0PjrNg|@레고웅|kr|레고 리뷰
-삐요의 블럭리뷰|UCQEN1RKh_9INXIcq0kldBww|@레고삐요|kr|블록 리뷰
+이상훈TV|UCY-d9-BjGZtnETUVdWqOt4Q|@LeeSanghoontv|kr|개그맨 이상훈의 레고·피규어 수집 리뷰 (25년 수집가, 토이 뮤지엄)
+레고도사꾸삐|UCmA7038F43v888Q82sNTNCw|@kupibricks|kr|국내 대표 레고 채널 — 신제품 리뷰·공식몰 프로모션 이야기
+레고따단 DDadan|UC2BRSQm6_TSz2Y5zWU6fUfQ|@LegoDdadan|kr|레고 수집가 출신 레고 전문 채널, 레고 창작 대회
+ABUJI BRICK 브릭 아부지|UCKha6gyKf5v8s9-WrVBlS8w|@ABUJI-BRICK|kr|매달 신제품 소식·자동차 세트 리뷰·브릭 창작가 인터뷰
+브릭키|UC5GGGj_QmUaeRlhMnCq7pzQ|@브릭키|kr|"이 레고는 사지 마세요" — 솔직한 구매 조언 리뷰
+문워커 Moon Walker|UCC0I6GYZxzyNadv27tjz-lQ|@MoonWalkerLEGO|kr|레고에 진심인 어른의 레고 놀이·합체 영상
+학희 haki|UCeQ5bROeD75lIvD-hsf15kQ|@hakibrick|kr|레고 스타워즈 덕후의 대형 세트 리뷰·할인 정보
+삐요의 블럭리뷰|UCQEN1RKh_9INXIcq0kldBww|@레고삐요|kr|레고·옥스포드 리뷰, 출시 예정 소식
 LEGO (공식)|UCP-Ng5SXUEt0VE-TXqRdL6g|@lego|world|레고 본사 공식 채널 — 신제품 영상
 Brick Technology|UCUuvZ0skL2WYZ3rhPMZbfdA|@BrickTechnology|world|레고로 만드는 기계·과학 실험
 Brick Experiment Channel|UClsFdM0HzTdF1JYoraQ0aUw|@BrickExperimentChannel|world|레고 테크닉 실험
