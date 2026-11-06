@@ -1036,3 +1036,40 @@ a.seg-b { text-align: center; text-decoration: none; }
 .ytv-img { aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
 .ytv-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ytv-t { font-size: 14px; font-weight: 700; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* ---- 이달의 빌더 ---- */
+.bd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.bd-card { display: grid; border-radius: 18px; overflow: hidden; background: var(--surface); box-shadow: 0 1px 0 var(--line), 0 6px 20px rgba(17, 24, 39, .06); color: var(--fg); text-decoration: none; transition: transform .15s; }
+.bd-card:hover { transform: translateY(-2px); }
+.bd-cover { aspect-ratio: 16 / 10; overflow: hidden; background: color-mix(in srgb, var(--bc) 12%, var(--surface-2)); }
+.bd-cover img, .bd-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bd-meta { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-top: 3px solid var(--bc); }
+.bd-meta > div { display: grid; gap: 2px; min-width: 0; }
+.bd-meta .small { color: var(--muted); }
+.bd-av { border-radius: 50%; object-fit: cover; flex: none; display: inline-grid; place-items: center; color: #fff; font-weight: 800; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--bc); }
+.bd-banner .bd-jump { display: flex; gap: 8px; flex-wrap: wrap; }
+.bd-banner .chip { background: rgba(255, 255, 255, .14); color: #fff; text-decoration: none; }
+.bd-banner .chip:hover { background: rgba(255, 255, 255, .24); }
+.bd-block { display: grid; gap: 14px; border-top: 4px solid var(--bc); scroll-margin-top: 80px; }
+.bd-head { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.bd-who { display: grid; gap: 2px; flex: 1; min-width: 160px; }
+.bd-who h2 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
+.bd-role { font-size: 12px; font-weight: 800; color: var(--bc); letter-spacing: .02em; }
+.bd-ig { color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none; }
+.bd-ig:hover { color: var(--fg); text-decoration: underline; }
+.bd-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.bd-headline { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.bd-intro { margin: 0; color: var(--muted); line-height: 1.7; word-break: keep-all; }
+.bd-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.bd-tags .kchip { font-size: 12.5px; padding: 4px 9px; background: color-mix(in srgb, var(--bc) 10%, var(--surface-2)); color: var(--bc); }
+.bd-works { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.bd-work { display: grid; gap: 4px; align-content: start; color: var(--fg); text-decoration: none; }
+.bd-work .small { color: var(--muted); word-break: keep-all; }
+.bd-pic { aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: var(--surface-2); margin-bottom: 4px; }
+.bd-pic img { transition: transform .3s; }
+.bd-work:hover .bd-pic img { transform: scale(1.04); }
+@media (max-width: 720px) {
+  .bd-grid { grid-auto-flow: column; grid-auto-columns: 78%; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .bd-card { scroll-snap-align: start; }
+  .bd-works { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bd-work .small { font-size: 12px; }
+}

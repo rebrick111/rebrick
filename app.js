@@ -1059,6 +1059,7 @@ async function route() {
     if (page === 'new') return renderNew(a || 'soon');
     if (page === 'promos') return renderPromos();
     if (page === 'limited') return renderLimited();
+    if (page === 'builders') return renderBuilders(a ? decodeURIComponent(a) : '');
     if (page === 'themes') return renderThemes();
     if (page === 'theme' && a) return await renderTheme(decodeURIComponent(a));
     if (page === 'sellguide') return renderSellGuide();
@@ -1117,6 +1118,7 @@ async function renderList() {
       el('div', { class: 'filters scroll' }, cond, kit, trade, sort, el('label', { class: 'small', style: 'display:inline-flex;gap:6px;align-items:center;flex:none' }, sold, '판매완료도 보기')),
       grid),
     home ? renderHero('extras') : '',
+    home ? builderHome() : '',
     home ? (() => {   // 레고 소식 (국내 뉴스 5개, 늦게 와도 화면은 먼저)
       const box = el('div', { class: 'nlist' }, el('div', { class: 'hint' }, '불러오는 중…'));
       loadFeeds(window.BRICK_NEWS_FEEDS.kr).then(items => box.replaceChildren(newsTicker(items.slice(0, 12)))).catch(() => box.replaceChildren(el('div', { class: 'hint' }, '소식을 불러오지 못했어요.')));
@@ -1555,6 +1557,58 @@ function renderLimited() {
         el('div', { class: 'gbox warn' }, el('b', {}, '⚠️ 살 때 꼭 확인'), el('ul', {}, el('li', {}, '커스텀(가짜) 미니피규어가 아주 많아요. 프린팅·다리 색·블리스터 카드를 브릭링크 사진과 비교하세요.'),
           el('li', {}, '비싼 한정판은 직거래로 실물을 보고 사세요.'), el('li', {}, '팔 때는 세트번호 칸에 브릭링크 번호(예: comcon028)를 넣어 주세요.')))),
       el('div', {}, el('a', { class: 'btn primary', href: '#/sell' }, '내 한정판 팔기'))));
+}
+
+// ---- 이달의 빌더 (인스타 DM으로 허락받은 빌더만, builders.js) ----------------------------
+const BUILDERS = () => window.BRICK_BUILDERS || [];
+const igPost = id => `https://www.instagram.com/p/${id}/`;
+const igLink = (u, txt) => el('a', { class: 'bd-ig', href: `https://www.instagram.com/${u}/`, target: '_blank', rel: 'noopener' }, txt || '@' + u);
+function builderAvatar(b, size = 64) {
+  const fb = el('span', { class: 'bd-av', style: `width:${size}px;height:${size}px;background:${b.color}` }, b.name[0]);
+  const img = el('img', { class: 'bd-av', src: b.avatar, alt: '', width: size, height: size, loading: 'lazy' });
+  img.onerror = () => img.replaceWith(fb);
+  return img;
+}
+// 첫 화면 카드: 대표 작품 사진 + 이름
+const builderCard = b => el('a', { class: 'bd-card', href: `#/builders/${b.id}`, style: `--bc:${b.color}` },
+  el('div', { class: 'bd-cover' }, el('img', { src: b.works[0].img, alt: `${b.name} 작품 ${b.works[0].title}`, loading: 'lazy' })),
+  el('div', { class: 'bd-meta' }, builderAvatar(b, 40),
+    el('div', {}, el('b', {}, b.name, el('span', { class: 'small' }, ' · ' + b.role)), el('span', { class: 'small' }, b.headline))));
+function builderHome() {
+  const list = BUILDERS();
+  if (!list.length) return '';
+  return el('section', { class: 'section' },
+    el('div', { class: 'sec-head' }, el('h2', {}, '이달의 빌더'), el('p', {}, `${window.BRICK_BUILDERS_MONTH} · 레고로 작품을 만드는 사람들`),
+      el('a', { class: 'more', href: '#/builders' }, '전체 →')),
+    el('div', { class: 'bd-grid' }, list.map(builderCard)));
+}
+function renderBuilders(focus) {
+  const list = BUILDERS();
+  const block = b => el('article', { class: 'panel bd-block', id: 'bd-' + b.id, style: `--bc:${b.color}` },
+    el('div', { class: 'bd-head' }, builderAvatar(b, 72),
+      el('div', { class: 'bd-who' },
+        el('span', { class: 'bd-role' }, b.role),
+        el('h2', {}, b.name),
+        igLink(b.ig)),
+      el('div', { class: 'bd-links' }, b.links.map(([t, u]) => el('a', { class: 'btn', href: u, target: '_blank', rel: 'noopener' }, t + ' ↗')))),
+    el('p', { class: 'bd-headline' }, b.headline),
+    el('p', { class: 'bd-intro' }, b.intro),
+    el('div', { class: 'bd-tags' }, b.tags.map(t => el('span', { class: 'kchip' }, t))),
+    el('div', { class: 'bd-works' }, b.works.map(w => el('a', { class: 'bd-work', href: igPost(w.post), target: '_blank', rel: 'noopener' },
+      el('div', { class: 'bd-pic' }, el('img', { src: w.img, alt: `${b.name} 작품 ${w.title}`, loading: 'lazy' })),
+      el('b', {}, w.title), el('span', { class: 'small' }, w.desc)))),
+    el('p', { class: 'hint', style: 'margin:0' }, `사진·작품 © @${b.ig} · 빌더의 허락을 받아 소개해요. 사진을 누르면 인스타그램 원래 게시물이 열려요.`));
+  show(el('section', { class: 'banner dark bd-banner' },
+      el('span', { class: 'eyebrow' }, `이달의 빌더 · ${window.BRICK_BUILDERS_MONTH}`),
+      el('h2', {}, '레고로 ', el('em', {}, '작품'), '을 만드는 사람들'),
+      el('p', {}, '리브릭이 직접 연락해서 허락을 받은 빌더의 작품을 소개해요. 마음에 드는 작품이 있으면 빌더 계정에 응원을 남겨 주세요.'),
+      el('div', { class: 'bd-jump' }, list.map(b => el('a', { class: 'chip', href: `#/builders/${b.id}` }, b.name)))),
+    ...list.map(block),
+    el('section', { class: 'panel guide' },
+      el('h2', {}, '내 작품도 소개받고 싶다면'),
+      el('p', {}, '리브릭 인스타그램 @re.brick_cycle로 DM을 보내 주세요. 작품 사진과 함께 출처를 밝혀 소개해 드려요.'),
+      el('div', {}, igLink('re.brick_cycle', '@re.brick_cycle 인스타그램 열기 ↗'))));
+  if (focus) setTimeout(() => document.getElementById('bd-' + focus)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
 // ---- 테마 둘러보기 ----------------------------------------------------------------
@@ -2634,10 +2688,15 @@ function renderLogin() {
   const segs = [['login', '로그인'], ['signup', '회원가입'], ['code', '인증번호로']].map(([k, t]) =>
     el('button', { type: 'button', class: 'seg-b', 'data-k': k, onclick: () => setMode(k) }, t));
   const forgot = el('button', { type: 'button', class: 'linkbtn', onclick: () => setMode('code') }, '비밀번호를 잊었거나 아직 안 정했어요 →');
+  // 회원가입 때만: 약관·개인정보처리방침 동의 + 만 14세 이상 확인
+  const agree = el('input', { type: 'checkbox' });
+  const agreeWrap = el('label', { class: 'small', style: 'display:flex;gap:8px;align-items:flex-start;margin:10px 0 4px;line-height:1.5' }, agree,
+    el('span', {}, '만 14세 이상이며, ', el('a', { href: 'terms.html', target: '_blank', rel: 'noopener' }, '이용약관'), '과 ',
+      el('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, '개인정보처리방침'), '에 동의해요 (필수)'));
   const form = el('form', { class: 'panel login' },
     el('h2', {}, '로그인 / 가입'),
     el('div', { class: 'seg', role: 'group', 'aria-label': '로그인 방법' }, segs), intro,
-    el('label', { class: 'f' }, '이메일 (아이디)', email), pwWrap, pw2Wrap, el('div', { class: 'bar' }, btn), st, forgot,
+    el('label', { class: 'f' }, '이메일 (아이디)', email), pwWrap, pw2Wrap, agreeWrap, el('div', { class: 'bar' }, btn), st, forgot,
     el('ul', { class: 'tips small' },
       el('li', {}, '메일이 안 보이면 스팸함도 확인해 주세요.'),
       el('li', {}, CFG.otpCode ? '링크는 누른 기기에서만 로그인돼요. 컴퓨터로 로그인하려는데 메일을 휴대폰에서 봤다면 인증번호를 넣으세요.'
@@ -2702,7 +2761,7 @@ function renderLogin() {
   function setMode(k) {
     mode = k;
     segs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
-    pwWrap.hidden = k === 'code'; pw2Wrap.hidden = k !== 'signup';
+    pwWrap.hidden = k === 'code'; pw2Wrap.hidden = k !== 'signup'; agreeWrap.hidden = k !== 'signup';
     pw.required = k !== 'code'; pw2.required = k === 'signup';
     pw.autocomplete = k === 'signup' ? 'new-password' : 'current-password';
     pw.placeholder = k === 'signup' ? '8자 이상 · 영문·숫자·특수기호 포함' : '비밀번호';
@@ -2729,6 +2788,7 @@ function renderLogin() {
     if (mode === 'signup') {
       if (pwMsg(pw.value)) return fail(pwMsg(pw.value));
       if (pw.value !== pw2.value) return fail('비밀번호 두 개가 서로 달라요.');
+      if (!agree.checked) return fail('이용약관·개인정보처리방침 동의에 체크해 주세요.');
       btn.disabled = true; st.className = 'status'; st.textContent = '가입하는 중…';
       const { data, error } = await sb.auth.signUp({ email: addr, password: pw.value, options: { emailRedirectTo: location.origin + location.pathname } });
       if (error) return fail(/already/i.test(error.message) ? '이미 가입한 메일이에요. 로그인 탭에서 로그인해 주세요.' : /password/i.test(error.message) ? '비밀번호가 너무 쉬워요. 더 길게 정해 주세요.' : errMsg(error));
